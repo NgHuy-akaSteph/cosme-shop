@@ -19,9 +19,11 @@
 
 ### 3 Personas
 
-1. **Guest (anonymous)** — Browse, xem chi tiết sản phẩm, làm Routine Quiz
+1. **Guest (anonymous)** — Browse, xem chi tiết sản phẩm, tìm kiếm
 2. **Customer (`user@cosme-shop.com` / `user123`)** — Register, login, wishlist, cart, checkout, order tracking
 3. **Admin (`admin@cosme-shop.com` / `admin123`)** — CRUD sản phẩm, quản lý orders, xem dashboard
+
+> **Note (Oct 2026)**: AI/Routine Builder module đã được loại bỏ hoàn toàn (commit `e8399bb`). Guest persona không còn làm Routine Quiz.
 
 ### Seed Data Available
 
@@ -89,7 +91,7 @@ grep -E "router\.(get|post|patch|delete|put)" backend/app/api/*.py
 - Verify DB có seed data: truy vấn count products/categories/users
 - Reset nếu cần: chạy lại seed script
 
-### Step 4.4: Viết checklist cho Guest persona (~8 cases)
+### Step 4.4: Viết checklist cho Guest persona (~7 cases)
 
 1. Browse products list (filter by category/brand/skin_type)
 2. Xem product detail (có ảnh, giá, ingredients)
@@ -97,8 +99,9 @@ grep -E "router\.(get|post|patch|delete|put)" backend/app/api/*.py
 4. Sort products (price asc/desc, newest, best-seller)
 5. Xem best-sellers
 6. Xem similar products
-7. Làm Routine Quiz (gửi quiz → nhận routine steps)
-8. Xem categories list, click vào category
+7. Xem categories list, click vào category
+
+> **Note**: Bước "Làm Routine Quiz" đã bị loại bỏ khi xóa AI module.
 
 ### Step 4.5: Viết checklist cho Customer persona (~15 cases)
 
@@ -188,20 +191,21 @@ curl -X POST http://localhost:8000/api/auth/login \
 - [x] Step 4.1: Inventory frontend pages & routes (18 pages, 21 routes)
 - [x] Step 4.2: Inventory backend endpoints (28 endpoints across 10 routers)
 - [x] Step 4.3: Test infrastructure setup (DB seed OK, backend OK, JSONB verified)
-- [x] Step 4.4: Guest persona checklist (12 cases)
+- [x] Step 4.4: Guest persona checklist (11 cases) — Routine Quiz removed (AI module)
 - [x] Step 4.5: Customer persona checklist (18 cases)
 - [x] Step 4.6: Admin persona checklist (16 cases)
-- [x] Step 4.7: Cross-cutting test cases (8 cases)
+- [x] Step 4.7: Cross-cutting test cases (7 cases) — X-AI-FALLBACK removed
 - [x] Step 4.8: Format checklist as test file → `reports/uat-checklist.md`
 - [x] Step 4.9: Pre-flight smoke check → ALL PASS
 
 ## Success Criteria
 
 - ✅ Checklist covers tất cả routes/endpoints identified ở Step 4.1 + 4.2
-- ✅ 3 personas đầy đủ: Guest, Customer, Admin
+- ✅ 3 personas đầy đủ: Guest (11), Customer (18), Admin (16), Cross-cutting (7) = **52 cases total**
 - ✅ Mỗi test case có clear pass/fail criteria
 - ✅ File format dễ cho tester tick (markdown checkbox + bảng)
 - ✅ Pre-flight smoke check PASS
+- ✅ AI module fully removed (commit `e8399bb`)
 
 ## Risk Assessment
 
@@ -213,9 +217,10 @@ curl -X POST http://localhost:8000/api/auth/login \
 
 - Mitigation: Test upload qua mock URL hoặc skip nếu service down.
 
-### Risk 3: AI service chưa chạy
+### Risk 3: ~~AI service chưa chạy~~ (RESOLVED)
 
-- Mitigation: Routine Quiz test case chấp nhận 200 (success) hoặc 503 (AI offline) per phase-03.
+- **Status**: AI module đã được loại bỏ hoàn toàn (commit `e8399bb`).
+- `/api/ai/routine` trả về 404. Routine Quiz UI đã bị xóa khỏi FE.
 
 ### Risk 4: Email confirm flow chưa có
 
@@ -231,3 +236,14 @@ curl -X POST http://localhost:8000/api/auth/login \
 
 Sau khi Phase 04 done → deliver checklist cho tester team chạy UAT session.
 Track issues → tạo `phase-05-fix-uat-issues.md` nếu phát hiện bugs trong UAT.
+
+---
+
+## Phase 04 Completion Summary (Oct 13, 2026)
+
+- ✅ Plan created with 9 implementation steps
+- ✅ UAT checklist generated at `reports/uat-checklist.md` (52 test cases)
+- ✅ Pre-flight smoke verified all major endpoints (200/201)
+- ✅ AI/Routine Builder module removed (commit `e8399bb`) — Guest checklist: 12→11, Cross-cutting: 8→7
+- ✅ Plan synced với implementation reality
+- **Total scope**: 4 phases (01-04) closed. System ready for tester team.
