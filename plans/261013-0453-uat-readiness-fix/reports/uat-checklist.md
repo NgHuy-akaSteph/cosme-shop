@@ -32,7 +32,7 @@
 
 ---
 
-## 1. Guest Persona (Anonymous) — 12 cases
+## 1. Guest Persona (Anonymous) — 11 cases
 
 | # | Test ID | Action | Expected Result | Pass |
 |---|---|---|---|---|
@@ -45,9 +45,8 @@
 | 1.7 | G-BEST | Visit `/products` Best Sellers section | Top 4-10 best sellers shown | ☐ |
 | 1.8 | G-DETAIL | Click any product | Detail page shows name, price, image, description, ingredients | ☐ |
 | 1.9 | G-SIMILAR | On detail page, scroll to "Similar" | 4-8 similar products from same category | ☐ |
-| 1.10 | G-QUIZ | Visit `/routine`, fill quiz (oily, acne, 5M VND) | Routine results with steps OR "no products match budget" | ☐ |
-| 1.11 | G-CAT-PAGE | Visit `/products?category_id=1` | URL filter applies, only that category | ☐ |
-| 1.12 | G-404-PROD | Visit `/products/99999` | 404 page or empty state | ☐ |
+| 1.10 | G-CAT-PAGE | Visit `/products?category_id=1` | URL filter applies, only that category | ☐ |
+| 1.11 | G-404-PROD | Visit `/products/99999` | 404 page or empty state | ☐ |
 
 ---
 
@@ -154,7 +153,7 @@
 
 ---
 
-## 4. Cross-cutting — 8 cases
+## 4. Cross-cutting — 7 cases
 
 | # | Test ID | Action | Expected Result | Pass |
 |---|---|---|---|---|
@@ -163,9 +162,8 @@
 | 4.3 | X-PAGINATION | GET `/api/products?page=2&size=5` | 5 different products, total=20 | ☐ |
 | 4.4 | X-FILTER-COMBO | GET `/api/products?skin_types=oily,combination&min_price=100000&max_price=300000` | Filtered + counted | ☐ |
 | 4.5 | X-CORS | Frontend at :5173 calls backend at :8000 | CORS allows, no preflight error | ☐ |
-| 4.6 | X-AI-FALLBACK | POST `/api/ai/routine` with budget 10M | 200 with steps OR 503 if AI offline | ☐ |
-| 4.7 | X-PERF-LIST | GET `/api/products?size=20` response time | < 500ms | ☐ |
-| 4.8 | X-LAZY-IMG | Visit product list, scroll | Images lazy load, no 404s | ☐ |
+| 4.6 | X-PERF-LIST | GET `/api/products?size=20` response time | < 500ms | ☐ |
+| 4.7 | X-LAZY-IMG | Visit product list, scroll | Images lazy load, no 404s | ☐ |
 
 ---
 
@@ -231,16 +229,14 @@ When you find a bug, file it with:
 | `/api/admin/orders/{id}/status` | PATCH | Admin | A-ORD-STATUS |
 | `/api/admin/users` | GET | Admin | A-USER-LIST |
 | `/api/admin/users/{id}/toggle-active` | PATCH | Admin | A-USER-DEACTIVATE |
-| `/api/ai/routine` | POST | - | G-QUIZ |
-| `/api/upload` | POST | Admin | (manual image upload) |
 | `/api/payment/sepay-webhook` | POST | - | (SePay integration) |
 
-## Appendix B: Known Limitations (post-Phase 03)
+## Appendix B: Known Limitations (post-Phase 04)
 
-- AI service URL points to internal cluster (`ai-service:8000`), returns 503 in dev unless AI pod running
 - `npm run build` was last verified in Phase 02 (24 errors fixed). Re-verify after seed/image_url changes
 - Email confirm flow NOT implemented — register = auto-login
 - Wishlist not auto-cleared when product soft-deleted (consider Phase 05)
+- AI/Routine Builder module fully removed in cleanup (Oct 2026)
 
 ## Appendix C: How to Reset Environment
 

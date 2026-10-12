@@ -27,15 +27,11 @@ class Product(Base, IdMixin, TimestampMixin):
     category_id: Mapped[int] = mapped_column(ForeignKey("categories.id"), nullable=False)
     brand_id: Mapped[int] = mapped_column(ForeignKey("brands.id"), nullable=False)
 
-    # Metadata cho filter Routine Builder (dung JSONB de support @>/contains)
+    # Metadata cho filter (JSONB @> contains)
     skin_types: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True)  # oily, dry, combination, sensitive, normal
     concerns: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True)  # acne, dark_spots, wrinkles, etc.
     key_ingredients: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True)
     free_from: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True)  # alcohol, fragrance, etc.
-
-    # Routine
-    usage_time: Mapped[str | None] = mapped_column(String(20), nullable=True)  # morning, night, both
-    step: Mapped[int | None] = mapped_column(Integer, nullable=True)  # 1-5 trong routine
 
     # Variants (JSONB)
     variants: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONB, nullable=True)
