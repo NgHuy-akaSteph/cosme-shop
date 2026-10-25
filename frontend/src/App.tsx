@@ -18,6 +18,7 @@ import OrdersPage from './pages/user/OrdersPage';
 import OrderDetailPage from './pages/user/OrderDetailPage';
 import ProfilePage from './pages/user/ProfilePage';
 import WishlistPage from './pages/user/WishlistPage';
+import NotFoundPage from './pages/NotFoundPage';
 
 // Admin Pages
 import AdminLayout from './components/AdminLayout';
@@ -61,6 +62,7 @@ function App() {
               <Route path="products/:id" element={<ProductDetailPage />} />
               <Route path="login" element={<LoginPage />} />
               <Route path="register" element={<RegisterPage />} />
+              <Route path="cart" element={<CartPage />} />
             </Route>
 
             {/* Protected User Routes */}
@@ -72,7 +74,6 @@ function App() {
                 </ProtectedRoute>
               }
             >
-              <Route path="cart" element={<CartPage />} />
               <Route path="checkout" element={<CheckoutPage />} />
               <Route path="orders" element={<OrdersPage />} />
               <Route path="orders/:id" element={<OrderDetailPage />} />
@@ -99,7 +100,7 @@ function App() {
             </Route>
 
             {/* Fallback */}
-            <Route path="*" element={<Navigate to="/" replace />} />
+            <Route path="*" element={<NotFoundPage />} />
           </Routes>
         </BrowserRouter>
       </ConfigProvider>

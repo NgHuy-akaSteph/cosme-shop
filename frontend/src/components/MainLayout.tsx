@@ -1,4 +1,4 @@
-import { Outlet, Link, useNavigate } from 'react-router-dom';
+import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
 import { Layout, Menu, Badge, Button, Dropdown, Avatar } from 'antd';
 import type { MenuProps } from 'antd';
 import {
@@ -16,6 +16,7 @@ type MenuItem = NonNullable<MenuProps['items']>[number];
 
 export default function MainLayout() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, isAuthenticated, logout } = useAuthStore();
   const cartCount = useCartStore((state) => state.getItemCount());
 
@@ -57,6 +58,14 @@ export default function MainLayout() {
       ]
     : [];
 
+  // Get current selected key from route
+  const getSelectedKey = () => {
+    const pathname = location.pathname;
+    if (pathname === '/') return 'home';
+    if (pathname.startsWith('/products')) return 'products';
+    return 'home';
+  };
+
   return (
     <Layout className="layout" style={{ minHeight: '100vh' }}>
       <Header style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
@@ -67,7 +76,7 @@ export default function MainLayout() {
         <Menu
           theme="dark"
           mode="horizontal"
-          defaultSelectedKeys={['home']}
+          selectedKeys={[getSelectedKey()]}
           items={[
             { key: 'home', label: <Link to="/">Trang chủ</Link> },
             { key: 'products', label: <Link to="/products">Sản phẩm</Link> },

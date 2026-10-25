@@ -1,0 +1,193 @@
+import { Table, Card, Typography, Tag, Select, Button, Descriptions, Modal, Input } from 'antd';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
+import api from '../../api/axios';
+import { formatPrice, statusColors, statusText } from '../../utils/constants';
+
+const { Title, Text } = Typography;
+const { TextArea } = Input;
+
+interface Order {
+  id: number;
+  order_code: string;
+  status: string;
+  total: string;
+  payment_method: string;
+  payment_status: string;
+  shipping_name: string;
+  shipping_phone: string;
+  shipping_address: string;
+  created_at: string;
+  user_id: number;
+}
+
+const statusOptions = [
+  { value: 'pending', label: 'Chờ xác nhận' },
+  { value: 'confirmed', label: 'Đã xác nhận' },
+  { value: 'packing', label: 'Đang đóng gói' },
+  { value: 'shipping', label: 'Đang giao' },
+  { value: 'delivered', label: 'Đã giao' },
+  { value: 'cancelled', label: 'Đã hủy' },
+];
+
+export default function AdminOrders() {
+  const queryClient = useQueryClient();
+  const [statusFilter, setStatusFilter] = useState<string | undefined>(undefined);
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [newStatus, setNewStatus] = useState('');
+  const [note, setNote] = useState('');
+  
+  const { data: orders, isLoading } = useQuery({
+    queryKey: ['admin', 'orders', statusFilter],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (statusFilter) params.append('status', statusFilter);
+      params.append('size', '50');
+      
+      const res = await api.get(`/api/admin/orders?${params}`);
+      return res.data.data as Order[];
+    },
+  });
+  
+  const updateStatusMutation = useMutation({
+    mutationFn: async ({ id, status, note }: { id: number; status: string; note?: string }) => {
+      const res = await api.patch(`/api/admin/orders/${id}/status`, { status, note });
+      return res.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'orders'] });
+      setIsModalOpen(false);
+      setSelectedOrder(null);
+    },
+  });
+  
+  const handleUpdateStatus = () => {
+    if (selectedOrder && newStatus) {
+      updateStatusMutation.mutate({
+        id: selectedOrder.id,
+        status: newStatus,
+        note: note || undefined,
+      });
+    }
+  };
+  
+  const columns = [
+    { title: 'Mã đơn', dataIndex: 'order_code' },
+    { title: 'Ngày đặt', dataIndex: 'created_at', render: (d: string) => new Date(d).toLocaleDateString('vi-VN') },
+    { title: 'Khách hàng ID', dataIndex: 'user_id', width: 100 },
+    {
+      title: 'Tổng tiền',
+      dataIndex: 'total',
+      render: (t: string) => <Text strong>{formatPrice(t)}</Text>,
+    },
+    {
+      title: 'Thanh toán',
+      dataIndex: 'payment_method',
+      render: (m: string) => m.toUpperCase(),
+    },
+    {
+      title: 'TT Thanh toán',
+      dataIndex: 'payment_status',
+      render: (s: string) => (
+        <Tag color={s === 'paid' ? 'green' : 'orange'}>
+          {s === 'paid' ? 'Đã thanh toán' : 'Chưa thanh toán'}
+        </Tag>
+      ),
+    },
+    {
+      title: 'Trạng thái',
+      dataIndex: 'status',
+      render: (s: string) => (
+        <Tag color={statusColors[s] || 'default'}>
+          {statusText[s] || s}
+        </Tag>
+      ),
+    },
+    {
+      title: '',
+      render: (_record: unknown, record: Order) => (
+        <Button
+          type="link"
+          onClick={() => {
+            setSelectedOrder(record);
+            setNewStatus(record.status);
+            setIsModalOpen(true);
+          }}
+        >
+          Cập nhật
+        </Button>
+      ),
+    },
+  ];
+  
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
+        <Title level={2}>Quản lý đơn hàng</Title>
+        <Select
+          placeholder="Lọc theo trạng thái"
+          allowClear
+          style={{ width: 200 }}
+          onChange={(v) => setStatusFilter(v)}
+          options={statusOptions}
+        />
+      </div>
+      
+      <Card>
+        <Table
+          dataSource={orders}
+          columns={columns}
+          rowKey="id"
+          loading={isLoading}
+          pagination={{ pageSize: 20 }}
+        />
+      </Card>
+      
+      <Modal
+        title={`Cập nhật đơn ${selectedOrder?.order_code}`}
+        open={isModalOpen}
+        onCancel={() => setIsModalOpen(false)}
+        onOk={handleUpdateStatus}
+        confirmLoading={updateStatusMutation.isPending}
+      >
+        {selectedOrder && (
+          <>
+            <Descriptions column={1} style={{ marginBottom: 16 }}>
+              <Descriptions.Item label="Khách hàng">
+                {selectedOrder.shipping_name} - {selectedOrder.shipping_phone}
+              </Descriptions.Item>
+              <Descriptions.Item label="Địa chỉ">
+                {selectedOrder.shipping_address}
+              </Descriptions.Item>
+              <Descriptions.Item label="Tổng tiền">
+                {formatPrice(selectedOrder.total)}
+              </Descriptions.Item>
+            </Descriptions>
+            
+            <div style={{ marginBottom: 16 }}>
+              <label>Trạng thái mới:</label>
+              <Select
+                value={newStatus}
+                onChange={setNewStatus}
+                options={statusOptions}
+                style={{ width: '100%', marginTop: 8 }}
+              />
+            </div>
+            
+            <div>
+              <label>Ghi chú:</label>
+              <TextArea
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                rows={3}
+                placeholder="VD: Đã lấy hàng tại kho HN"
+                style={{ marginTop: 8 }}
+              />
+            </div>
+          </>
+        )}
+      </Modal>
+    </div>
+  );
+}

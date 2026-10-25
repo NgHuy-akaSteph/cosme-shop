@@ -1,8 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { Card, Row, Col, Typography, Spin, Button } from 'antd';
 import { ShoppingOutlined } from '@ant-design/icons';
 import api from '../api/axios';
+import { formatPrice } from '../utils/constants';
 
 const { Title, Text } = Typography;
 
@@ -16,11 +17,8 @@ interface Product {
   brand: { name: string } | null;
 }
 
-function formatPrice(price: number | string): string {
-  return new Intl.NumberFormat('vi-VN').format(Number(price)) + ' đ';
-}
-
 export default function HomePage() {
+  const navigate = useNavigate();
   const { data, isLoading } = useQuery({
     queryKey: ['products', 'best-sellers'],
     queryFn: async () => {
@@ -33,26 +31,35 @@ export default function HomePage() {
     <div>
       {/* Hero Section */}
       <div style={{
-        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        background: 'linear-gradient(135deg, #fa8c16 0%, #ff7a45 100%)',
         color: 'white',
-        padding: '60px 0',
+        padding: '80px 50px',
         textAlign: 'center',
         borderRadius: 8,
         marginBottom: 40,
       }}>
-        <Title level={1} style={{ color: 'white', marginBottom: 16 }}>
-          Chào mừng đến với Cosme Shop
+        <Title level={1} style={{ color: 'white', marginBottom: 16, fontSize: 48 }}>
+          Mỹ phẩm chính hãng cao cấp
         </Title>
-        <Text style={{ color: 'white', fontSize: 18, display: 'block', marginBottom: 24 }}>
-          Mỹ phẩm chính hãng - Tư vấn thông minh bằng AI
+        <Text style={{ color: 'white', fontSize: 18, display: 'block', marginBottom: 32 }}>
+          Làm đẹp an toàn - Chất lượng đảm bảo - Giao hàng toàn quốc
         </Text>
-        <div style={{ display: 'flex', gap: 16, justifyContent: 'center' }}>
-          <Link to="/products">
-            <Button type="primary" size="large" icon={<ShoppingOutlined />}>
-              Mua sắm ngay
-            </Button>
-          </Link>
-        </div>
+        <Button
+          type="default"
+          size="large"
+          icon={<ShoppingOutlined />}
+          onClick={() => navigate('/products')}
+          style={{
+            height: 50,
+            fontSize: 16,
+            padding: '0 40px',
+            backgroundColor: 'white',
+            borderColor: 'white',
+            color: '#fa8c16',
+          }}
+        >
+          Khám phá ngay
+        </Button>
       </div>
       
       {/* Best Sellers */}
@@ -83,7 +90,8 @@ export default function HomePage() {
                           <img
                             src={product.image_url}
                             alt={product.name}
-                            style={{ maxHeight: '100%', objectFit: 'cover' }}
+                            loading="lazy"
+                            style={{ height: '100%', width: '100%', objectFit: 'contain' }}
                           />
                         ) : (
                           <ShoppingOutlined style={{ fontSize: 48, color: '#ccc' }} />

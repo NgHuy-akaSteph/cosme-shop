@@ -7,6 +7,11 @@ CONFIG_DIR = Path(__file__).parent.parent.parent
 
 
 class Settings(BaseSettings):
+    PORT: int = 8000
+
+    # Tự chạy `alembic upgrade head` khi start app (mặc định tắt cho production)
+    AUTO_MIGRATE: bool = False
+
     # Database
     DATABASE_URL: str = "postgresql+asyncpg://admin:secret@localhost:5432/cosme_shop"
     
