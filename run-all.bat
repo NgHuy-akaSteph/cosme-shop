@@ -32,9 +32,14 @@ if not exist "%BACKEND_DIR%\.venv\Scripts\python.exe" (
         echo [dev][error] Khong tao duoc venv
         exit /b 1
     )
-    "%BACKEND_DIR%\.venv\Scripts\python.exe" -m pip install -r "%BACKEND_DIR%\requirements-dev.txt"
+    "%BACKEND_DIR%\.venv\Scripts\python.exe" -m pip install -r "%BACKEND_DIR%\requirements.txt"
     if errorlevel 1 (
         echo [dev][error] Cai dependencies that bai
+        exit /b 1
+    )
+    "%BACKEND_DIR%\.venv\Scripts\python.exe" -m pip install -r "%BACKEND_DIR%\requirements-dev.txt"
+    if errorlevel 1 (
+        echo [dev][error] Cai dev dependencies that bai
         exit /b 1
     )
 )

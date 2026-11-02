@@ -35,8 +35,10 @@ trap cleanup INT TERM EXIT
 if [[ ! -x "$BACKEND_DIR/.venv/bin/python" ]]; then
     log "Tạo virtualenv cho backend..."
     python3 -m venv "$BACKEND_DIR/.venv" || { err "Không tạo được venv"; exit 1; }
-    "$BACKEND_DIR/.venv/bin/pip" install -r "$BACKEND_DIR/requirements-dev.txt" \
+    "$BACKEND_DIR/.venv/bin/pip" install -r "$BACKEND_DIR/requirements.txt" \
         || { err "Cài dependencies thất bại"; exit 1; }
+    "$BACKEND_DIR/.venv/bin/pip" install -r "$BACKEND_DIR/requirements-dev.txt" \
+        || { err "Cài dev dependencies thất bại"; exit 1; }
 fi
 
 if [[ ! -f "$BACKEND_DIR/.env" ]]; then
