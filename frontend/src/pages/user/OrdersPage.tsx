@@ -1,6 +1,7 @@
 import { Card, Table, Typography, Tag, Empty, Button } from 'antd';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
 import { ShoppingOutlined, EyeOutlined } from '@ant-design/icons';
 import api from '../../api/axios';
 import { formatPrice, formatDate, statusColors, statusText } from '../../utils/constants';
@@ -17,15 +18,28 @@ interface Order {
   created_at: string;
 }
 
+interface OrderListResponse {
+  data: Order[];
+  total: number;
+  page: number;
+  size: number;
+}
+
+const PAGE_SIZE = 10;
+
 export default function OrdersPage() {
-  const { data: orders, isLoading } = useQuery({
-    queryKey: ['orders'],
+  const [page, setPage] = useState(1);
+
+  const { data: ordersData, isLoading } = useQuery({
+    queryKey: ['orders', page],
     queryFn: async () => {
-      const res = await api.get('/api/orders');
-      return res.data.data as Order[];
+      const res = await api.get(`/api/orders?page=${page}&size=${PAGE_SIZE}`);
+      return res.data as OrderListResponse;
     },
   });
-  
+
+  const orders = ordersData?.data ?? [];
+
   const columns = [
     {
       title: 'Mã đơn',
@@ -58,7 +72,7 @@ export default function OrdersPage() {
     },
     {
       title: '',
-      render: (_: any, record: Order) => (
+      render: (_: unknown, record: Order) => (
         <Link to={`/orders/${record.id}`}>
           <Button type="link" icon={<EyeOutlined />}>
             Chi tiết
@@ -67,12 +81,12 @@ export default function OrdersPage() {
       ),
     },
   ];
-  
+
   if (isLoading) {
     return <div>Đang tải...</div>;
   }
-  
-  if (!orders || orders.length === 0) {
+
+  if (orders.length === 0) {
     return (
       <div style={{ textAlign: 'center', padding: '60px 0' }}>
         <Empty
@@ -88,17 +102,23 @@ export default function OrdersPage() {
       </div>
     );
   }
-  
+
   return (
     <div>
       <Title level={2}>Đơn hàng của tôi</Title>
-      
+
       <Card>
         <Table
           dataSource={orders}
           columns={columns}
           rowKey="id"
-          pagination={{ pageSize: 10 }}
+          pagination={{
+            current: page,
+            pageSize: PAGE_SIZE,
+            total: ordersData?.total ?? 0,
+            showSizeChanger: false,
+            onChange: setPage,
+          }}
         />
       </Card>
     </div>

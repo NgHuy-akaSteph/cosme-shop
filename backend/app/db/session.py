@@ -38,6 +38,7 @@ from app.model.product_image import ProductImage  # noqa: F401, E402
 from app.model.order import Order  # noqa: F401, E402
 from app.model.order_item import OrderItem  # noqa: F401, E402
 from app.model.order_status_history import OrderStatusHistory  # noqa: F401, E402
+from app.model.payment_webhook_log import PaymentWebhookLog  # noqa: F401, E402
 from app.model.wishlist import Wishlist  # noqa: F401, E402
 
 

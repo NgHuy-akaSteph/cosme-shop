@@ -16,7 +16,7 @@ Tài liệu liên quan:
 - **ORM:** SQLAlchemy 2.x async + Alembic migration.
 - **Schema duy nhất:** `public` (đã loại bỏ schema `ai`).
 - **Tên database:** `cosme_shop`.
-- **Số bảng MVP:** 8 bảng nghiệp vụ.
+- **Số bảng MVP:** 9 bảng nghiệp vụ.
 - **KHÔNG dùng** extension `pgvector` (đã loại bỏ — AI gọi Gemini API trực tiếp, không có embedding).
 - **DB GUI dev:** Adminer ở port `8080`.
 
@@ -35,6 +35,18 @@ erDiagram
     brands ||--o{ products : "thuong hieu"
     products ||--o{ order_items : "snapshot"
     products ||--o{ wishlists : "yeu thich"
+
+    payment_webhook_logs {
+        int id PK
+        string provider
+        string transaction_id UK
+        string order_code
+        int amount
+        json payload
+        string status
+        text error
+        timestamptz created_at
+    }
 ```
 
 Quan hệ chính:
@@ -84,7 +96,7 @@ Cấu hình trong [backend/app/db/session.py](../../backend/app/db/session.py):
 docker compose exec postgres psql -U admin -d cosme_shop
 ```
 
-## 4. Chi tiết 8 bảng
+## 4. Chi tiết 9 bảng
 
 ### 4.1 `users`
 
@@ -253,6 +265,37 @@ Mục đích: sản phẩm user yêu thích.
 
 UNIQUE composite: `UNIQUE(user_id, product_id)` — một user không thể thêm cùng 1 product 2 lần.
 
+### 4.9 `payment_webhook_logs`
+
+Mục đích: audit log webhook thanh toán — chống xử lý trùng (idempotent) và truy vết giao dịch.
+
+| Cột | Kiểu SQL | Null | Default | Ràng buộc | Ghi chú |
+|---|---|---|---|---|---|
+| `id` | `SERIAL` | No | auto | PK | |
+| `provider` | `VARCHAR(20)` | No | -- | | `sepay` |
+| `transaction_id` | `VARCHAR(64)` | No | -- | UNIQUE `(provider, transaction_id)` | ID giao dịch từ cổng thanh toán |
+| `order_code` | `VARCHAR(32)` | Yes | NULL | | Mã đơn map được; NULL nếu không khớp |
+| `amount` | `INTEGER` | Yes | NULL | | Số tiền nhận (VNĐ) |
+| `payload` | `JSONB` | Yes | NULL | | Raw payload webhook để đối chiếu |
+| `status` | `VARCHAR(30)` | No | -- | | `received` \| `processed` \| `ignored` \| `unmatched` \| `cancelled` \| `amount_mismatch` |
+| `error` | `TEXT` | Yes | NULL | | Mô tả lỗi xử lý |
+| `created_at` | `TIMESTAMPTZ` | No | `now()` | | |
+
+Quan hệ ngược: không có FK (log tồn tại độc lập với đơn để giữ được lịch sử giao dịch lỗi).
+
+Migration: `backend/alembic/versions/20261031_0900_c1d2e3f4a5b6_add_payment_webhook_logs.py`.
+
+### 4.10 Partial unique index cho `orders.transaction_id`
+
+Migration cùng file trên tạo partial unique index:
+
+```sql
+CREATE UNIQUE INDEX uq_orders_transaction_id
+ON orders (transaction_id) WHERE transaction_id IS NOT NULL;
+```
+
+Ý nghĩa: 1 giao dịch thanh toán chỉ được gán cho tối đa 1 đơn — chống double-mark-paid khi webhook đến lại hoặc đối soát chạy song song.
+
 ## 5. Cấu trúc JSON columns
 
 ### 5.1 `products.images`
@@ -357,6 +400,8 @@ Trích từ [rules.md §7](rules.md):
 | `brands` | `slug` |
 | `products` | `slug` |
 | `orders` | `order_code` |
+| `orders` | `transaction_id` (partial unique, WHERE NOT NULL) |
+| `payment_webhook_logs` | `(provider, transaction_id)` |
 | `wishlists` | `(user_id, product_id)` |
 
 ## 7. Indexes đề xuất

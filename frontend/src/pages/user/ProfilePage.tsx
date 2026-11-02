@@ -2,17 +2,32 @@ import { Form, Input, Button, Card, Typography, message } from 'antd';
 import { useMutation } from '@tanstack/react-query';
 import { UserOutlined, MailOutlined, PhoneOutlined, LockOutlined } from '@ant-design/icons';
 import api from '../../api/axios';
+import type { ApiError } from '../../types/api';
+import { getErrorMessage } from '../../types/api';
 import { useAuthStore } from '../../store/authStore';
 
 const { Title } = Typography;
+
+/** Payload cập nhật profile. */
+interface ProfilePayload {
+  full_name: string;
+  phone?: string;
+  address?: string;
+}
+
+/** Payload đổi mật khẩu. */
+interface ChangePasswordPayload {
+  old_password: string;
+  new_password: string;
+}
 
 export default function ProfilePage() {
   const { user, updateUser } = useAuthStore();
   const [form] = Form.useForm();
   const [passwordForm] = Form.useForm();
-  
+
   const updateMutation = useMutation({
-    mutationFn: async (values: any) => {
+    mutationFn: async (values: ProfilePayload) => {
       const res = await api.patch('/api/auth/me', values);
       return res.data;
     },
@@ -20,29 +35,29 @@ export default function ProfilePage() {
       updateUser(data.data);
       message.success('Cập nhật thành công!');
     },
-    onError: (error: any) => {
-      message.error(error.response?.data?.detail || 'Cập nhật thất bại');
+    onError: (error: ApiError) => {
+      message.error(getErrorMessage(error, 'Cập nhật thất bại'));
     },
   });
   
   const changePasswordMutation = useMutation({
-    mutationFn: async (values: any) => {
+    mutationFn: async (values: ChangePasswordPayload) => {
       await api.post('/api/auth/change-password', values);
     },
     onSuccess: () => {
       message.success('Đổi mật khẩu thành công!');
       passwordForm.resetFields();
     },
-    onError: (error: any) => {
-      message.error(error.response?.data?.detail || 'Đổi mật khẩu thất bại');
+    onError: (error: ApiError) => {
+      message.error(getErrorMessage(error, 'Đổi mật khẩu thất bại'));
     },
   });
   
-  const onFinish = (values: any) => {
+  const onFinish = (values: ProfilePayload) => {
     updateMutation.mutate(values);
   };
-  
-  const onPasswordFinish = (values: any) => {
+
+  const onPasswordFinish = (values: ChangePasswordPayload) => {
     changePasswordMutation.mutate(values);
   };
   

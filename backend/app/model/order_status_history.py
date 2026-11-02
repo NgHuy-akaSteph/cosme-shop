@@ -1,7 +1,12 @@
+from typing import TYPE_CHECKING
+
 from sqlalchemy import ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, IdMixin
+
+if TYPE_CHECKING:
+    from app.model.order import Order
 
 
 class OrderStatusHistory(Base, IdMixin):
@@ -16,4 +21,4 @@ class OrderStatusHistory(Base, IdMixin):
     created_at: Mapped[str] = mapped_column(String, nullable=False)  # ISO timestamp
     
     # Relationships
-    order: Mapped["Order"] = relationship("Order", backref="status_history")
+    order: Mapped["Order"] = relationship("Order", back_populates="status_history")

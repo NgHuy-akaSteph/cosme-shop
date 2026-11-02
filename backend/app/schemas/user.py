@@ -21,6 +21,8 @@ class UserCreate(UserBase):
 
 class UserUpdate(BaseModel):
     """Schema cap nhat user profile"""
+    model_config = ConfigDict(extra="forbid")
+
     full_name: str | None = None
     phone: str | None = None
     address: str | None = None

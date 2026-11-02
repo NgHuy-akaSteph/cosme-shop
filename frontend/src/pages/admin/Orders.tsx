@@ -1,11 +1,23 @@
-import { Table, Card, Typography, Tag, Select, Button, Descriptions, Modal, Input } from 'antd';
+import { Table, Card, Typography, Tag, Select, Button, Descriptions, Modal, Input, Table as AntTable } from 'antd';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import api from '../../api/axios';
 import { formatPrice, statusColors, statusText } from '../../utils/constants';
+import type { ApiError } from '../../types/api';
+import { getErrorMessage } from '../../types/api';
+import { message } from 'antd';
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
+
+interface OrderItem {
+  id: number;
+  product_name: string;
+  product_price: string;
+  qty: number;
+  subtotal: string;
+  variant_info: { id?: string; name?: string } | null;
+}
 
 interface Order {
   id: number;
@@ -19,6 +31,14 @@ interface Order {
   shipping_address: string;
   created_at: string;
   user_id: number;
+  items: OrderItem[];
+}
+
+interface OrderListResponse {
+  data: Order[];
+  total: number;
+  page: number;
+  size: number;
 }
 
 const statusOptions = [
@@ -30,26 +50,42 @@ const statusOptions = [
   { value: 'cancelled', label: 'Đã hủy' },
 ];
 
+/** May trang thai don hang: chi cho chuyen sang trang thai hop le. */
+const NEXT_STATUS: Record<string, string[]> = {
+  pending: ['confirmed', 'cancelled'],
+  confirmed: ['packing', 'cancelled'],
+  packing: ['shipping'],
+  shipping: ['delivered'],
+  delivered: [],
+  cancelled: [],
+};
+
+const PAGE_SIZE = 20;
+
 export default function AdminOrders() {
   const queryClient = useQueryClient();
   const [statusFilter, setStatusFilter] = useState<string | undefined>(undefined);
+  const [page, setPage] = useState(1);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newStatus, setNewStatus] = useState('');
   const [note, setNote] = useState('');
-  
-  const { data: orders, isLoading } = useQuery({
-    queryKey: ['admin', 'orders', statusFilter],
+
+  const { data: ordersData, isLoading } = useQuery({
+    queryKey: ['admin', 'orders', statusFilter, page],
     queryFn: async () => {
       const params = new URLSearchParams();
+      params.append('page', String(page));
+      params.append('size', String(PAGE_SIZE));
       if (statusFilter) params.append('status', statusFilter);
-      params.append('size', '50');
-      
+
       const res = await api.get(`/api/admin/orders?${params}`);
-      return res.data.data as Order[];
+      return res.data as OrderListResponse;
     },
   });
-  
+
+  const orders = ordersData?.data ?? [];
+
   const updateStatusMutation = useMutation({
     mutationFn: async ({ id, status, note }: { id: number; status: string; note?: string }) => {
       const res = await api.patch(`/api/admin/orders/${id}/status`, { status, note });
@@ -57,11 +93,15 @@ export default function AdminOrders() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'orders'] });
+      message.success('Cập nhật trạng thái thành công!');
       setIsModalOpen(false);
       setSelectedOrder(null);
     },
+    onError: (error: ApiError) => {
+      message.error(getErrorMessage(error, 'Cập nhật trạng thái thất bại'));
+    },
   });
-  
+
   const handleUpdateStatus = () => {
     if (selectedOrder && newStatus) {
       updateStatusMutation.mutate({
@@ -71,10 +111,18 @@ export default function AdminOrders() {
       });
     }
   };
-  
+
+  const allowedStatusOptions = selectedOrder
+    ? statusOptions.filter((o) => NEXT_STATUS[selectedOrder.status]?.includes(o.value))
+    : [];
+
   const columns = [
     { title: 'Mã đơn', dataIndex: 'order_code' },
-    { title: 'Ngày đặt', dataIndex: 'created_at', render: (d: string) => new Date(d).toLocaleDateString('vi-VN') },
+    {
+      title: 'Ngày đặt',
+      dataIndex: 'created_at',
+      render: (d: string) => new Date(d).toLocaleDateString('vi-VN'),
+    },
     { title: 'Khách hàng ID', dataIndex: 'user_id', width: 100 },
     {
       title: 'Tổng tiền',
@@ -99,9 +147,7 @@ export default function AdminOrders() {
       title: 'Trạng thái',
       dataIndex: 'status',
       render: (s: string) => (
-        <Tag color={statusColors[s] || 'default'}>
-          {statusText[s] || s}
-        </Tag>
+        <Tag color={statusColors[s] || 'default'}>{statusText[s] || s}</Tag>
       ),
     },
     {
@@ -112,6 +158,7 @@ export default function AdminOrders() {
           onClick={() => {
             setSelectedOrder(record);
             setNewStatus(record.status);
+            setNote('');
             setIsModalOpen(true);
           }}
         >
@@ -120,7 +167,7 @@ export default function AdminOrders() {
       ),
     },
   ];
-  
+
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
@@ -129,26 +176,36 @@ export default function AdminOrders() {
           placeholder="Lọc theo trạng thái"
           allowClear
           style={{ width: 200 }}
-          onChange={(v) => setStatusFilter(v)}
+          onChange={(v) => {
+            setStatusFilter(v);
+            setPage(1);
+          }}
           options={statusOptions}
         />
       </div>
-      
+
       <Card>
         <Table
           dataSource={orders}
           columns={columns}
           rowKey="id"
           loading={isLoading}
-          pagination={{ pageSize: 20 }}
+          pagination={{
+            current: page,
+            pageSize: PAGE_SIZE,
+            total: ordersData?.total ?? 0,
+            showSizeChanger: false,
+            onChange: setPage,
+          }}
         />
       </Card>
-      
+
       <Modal
         title={`Cập nhật đơn ${selectedOrder?.order_code}`}
         open={isModalOpen}
         onCancel={() => setIsModalOpen(false)}
         onOk={handleUpdateStatus}
+        okButtonProps={{ disabled: !newStatus || newStatus === selectedOrder?.status }}
         confirmLoading={updateStatusMutation.isPending}
       >
         {selectedOrder && (
@@ -164,17 +221,40 @@ export default function AdminOrders() {
                 {formatPrice(selectedOrder.total)}
               </Descriptions.Item>
             </Descriptions>
-            
+
+            <AntTable
+              size="small"
+              rowKey="id"
+              pagination={false}
+              style={{ marginBottom: 16 }}
+              dataSource={selectedOrder.items ?? []}
+              columns={[
+                { title: 'Sản phẩm', dataIndex: 'product_name' },
+                {
+                  title: 'Phân loại',
+                  dataIndex: 'variant_info',
+                  render: (v: OrderItem['variant_info']) => v?.name ?? '-',
+                },
+                { title: 'SL', dataIndex: 'qty', width: 60 },
+                {
+                  title: 'Tổng',
+                  dataIndex: 'subtotal',
+                  render: (s: string) => formatPrice(s),
+                },
+              ]}
+            />
+
             <div style={{ marginBottom: 16 }}>
               <label>Trạng thái mới:</label>
               <Select
+                placeholder="Chọn trạng thái tiếp theo"
                 value={newStatus}
                 onChange={setNewStatus}
-                options={statusOptions}
+                options={allowedStatusOptions}
                 style={{ width: '100%', marginTop: 8 }}
               />
             </div>
-            
+
             <div>
               <label>Ghi chú:</label>
               <TextArea

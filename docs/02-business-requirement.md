@@ -305,16 +305,22 @@ Hiển thị theo thứ tự thời gian ngược (mới nhất trên cùng).
      ```
   3. User chuyển khoản với nội dung chứa order code.
 - **Webhook:**
-  1. Verify `Authorization: Apikey <SEPAY_KEY>`.
-  2. Parse payload: `content`, `amount_in`, `transaction_id`.
-  3. Extract `order_code` từ `content` (regex `ORD\d+` hoặc `DH\d+`).
-  4. Tìm order → check idempotent (đã paid → skip).
-  5. Update `payment_status = paid`, `paid_at`, `transaction_id`.
-  6. Trả `{success: true}` cho SePay.
+  1. Verify chữ ký HMAC-SHA256 trên raw body (`X-SePay-Signature` + `X-SePay-Timestamp`), fallback `Authorization: Apikey <SEPAY_API_KEY>`.
+  2. Parse payload camelCase: `code`, `content`, `transferAmount`, `id`, `transferType`.
+  3. Extract `order_code` từ `code`/`content` (regex `ORD\d+`).
+  4. Ghi log `payment_webhook_logs` (idempotent theo `(provider, transaction_id)`).
+  5. Tìm order → check idempotent (đã paid → skip).
+  6. Update `payment_status = paid`, `paid_at`, `transaction_id`.
+  7. Trả `{success: true}` cho SePay.
 - **Edge cases:**
-  - Order không tồn tại → vẫn trả success (để SePay không retry).
+  - Order không tồn tại → vẫn trả success (để SePay không retry), log `unmatched`.
   - Đã paid → idempotent, skip update.
-  - Amount không khớp → log warning, vẫn update.
+  - Amount thiếu (`transferAmount < total`) → KHÔNG đánh paid, log `amount_mismatch`.
+  - Amount thừa → vẫn đánh paid, ghi log.
+  - Order đã `cancelled` → KHÔNG đánh paid, log `cancelled` (cần hoàn tiền thủ công).
+  - Giao dịch chuyển ra (`transferType != "in"`) → bỏ qua, log `ignored`.
+  - Chữ ký sai / timestamp lệch > 300s → 401.
+- **Đối soát thủ công:** `POST /api/payment/reconcile` (admin) quét SePay API v2, đánh paid các đơn `sepay` còn `unpaid`.
 
 ### 3.7 Module AI
 
@@ -363,7 +369,11 @@ Hiển thị theo thứ tự thời gian ngược (mới nhất trên cùng).
 | Order code | Unique, format `ORD` + timestamp + random |
 | Free shipping | `subtotal >= 500.000đ` |
 | Cancel order | Chỉ khi `pending` hoặc `confirmed`, hoàn stock |
-| Idempotent webhook | SePay có thể gọi nhiều lần, chỉ update 1 lần |
+| Idempotent webhook | SePay có thể gọi nhiều lần, chỉ update 1 lần (unique `(provider, transaction_id)` trên `payment_webhook_logs`) |
+| 1 giao dịch = 1 đơn | `orders.transaction_id` có partial unique index — chống gán trùng |
+| Filter skin_types / concerns | Semantics **OR** — sản phẩm khớp một trong các giá trị được chọn |
+| Xóa giá khuyến mãi | `PATCH /api/products/{id}` với `sale_price: null` → xoá giá KM (nullable fields) |
+| sold_count | Tăng theo `qty` khi đơn chuyển `delivered` |
 | JWT expire | 1 ngày, không refresh |
 | Giỏ hàng guest | Lưu `localStorage`, merge khi login (tùy chọn) |
 

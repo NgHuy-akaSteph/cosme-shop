@@ -11,7 +11,7 @@ class OrderItemBase(BaseModel):
     """Base schema cho order item"""
     product_id: int
     variant_id: str | None = None
-    qty: int = Field(..., gt=0)
+    qty: int = Field(..., gt=0, le=99)
 
 
 class OrderItemResponse(BaseModel):
@@ -29,9 +29,9 @@ class OrderItemResponse(BaseModel):
 class OrderBase(BaseModel):
     """Base schema cho order"""
     items: list[OrderItemBase]
-    shipping_name: str
-    shipping_phone: str
-    shipping_address: str
+    shipping_name: str = Field(..., min_length=2, max_length=255)
+    shipping_phone: str = Field(..., pattern=r"^0\d{9,10}$")
+    shipping_address: str = Field(..., min_length=5)
     payment_method: str = Field(..., pattern="^(cod|sepay)$")
     note: str | None = None
 

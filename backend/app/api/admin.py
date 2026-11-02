@@ -1,7 +1,5 @@
 """Admin API endpoints - quan ly don hang"""
 
-from typing import Any
-
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,55 +10,6 @@ from app.schemas.order import OrderListResponse, OrderStatusUpdate
 from app.service import order_service
 
 router = APIRouter(prefix="/api/admin/orders", tags=["admin-orders"])
-
-
-def _order_to_dict(order) -> dict[str, Any]:
-    """Convert order model to dict."""
-    return {
-        "id": order.id,
-        "user_id": order.user_id,
-        "order_code": order.order_code,
-        "status": order.status,
-        "subtotal": str(order.subtotal),
-        "shipping_fee": str(order.shipping_fee),
-        "discount": str(order.discount),
-        "total": str(order.total),
-        "payment_method": order.payment_method,
-        "payment_status": order.payment_status,
-        "paid_at": order.paid_at,
-        "transaction_id": order.transaction_id,
-        "shipping_name": order.shipping_name,
-        "shipping_phone": order.shipping_phone,
-        "shipping_address": order.shipping_address,
-        "tracking_code": order.tracking_code,
-        "carrier": order.carrier,
-        "note": order.note,
-        "created_at": order.created_at,
-        "updated_at": order.updated_at,
-        "items": [
-            {
-                "id": item.id,
-                "product_id": item.product_id,
-                "product_name": item.product_name,
-                "product_price": str(item.product_price),
-                "product_image": item.product_image,
-                "variant_info": item.variant_info,
-                "qty": item.qty,
-                "subtotal": str(item.subtotal),
-            }
-            for item in order.items
-        ],
-        "status_history": [
-            {
-                "id": h.id,
-                "status": h.status,
-                "note": h.note,
-                "created_by": h.created_by,
-                "created_at": h.created_at,
-            }
-            for h in sorted(order.status_history, key=lambda x: x.created_at, reverse=True)
-        ],
-    }
 
 
 @router.get("", response_model=OrderListResponse)
@@ -81,7 +30,7 @@ async def list_all_orders(
     )
     
     return OrderListResponse(
-        data=[_order_to_dict(o) for o in orders],
+        data=[order_service.order_to_dict(o) for o in orders],
         total=total,
         page=page,
         size=size,
@@ -114,7 +63,7 @@ async def update_order_status(
             )
         
         return {
-            "data": _order_to_dict(order),
+            "data": order_service.order_to_dict(order),
             "message": "Cập nhật trạng thái thành công",
         }
     except ValueError as e:

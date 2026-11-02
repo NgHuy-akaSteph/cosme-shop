@@ -1,12 +1,13 @@
 """Order service - business logic"""
 
+import logging
 import random
 import re
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import select, func, and_
+from sqlalchemy import and_, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlalchemy.orm.attributes import flag_modified
@@ -15,6 +16,8 @@ from app.model.order import Order
 from app.model.order_item import OrderItem
 from app.model.order_status_history import OrderStatusHistory
 from app.model.product import Product
+
+logger = logging.getLogger(__name__)
 
 
 def _get_main_image_url(product: Product) -> str | None:
@@ -26,8 +29,6 @@ def _get_main_image_url(product: Product) -> str | None:
         return None
     first = sorted_images[0]
     return first.secure_url or first.url
-from app.model.product import Product
-from app.model.user import User
 
 
 def generate_order_code() -> str:
@@ -280,19 +281,15 @@ async def create_order(
     # Reload order with items
     order = await get_order_by_id(db, order.id)
     
-    # Generate QR URL for SePay
+    # Generate QR URL for SePay (dung provider abstraction)
     qr_url = None
     if payment_method == "sepay":
-        from app.core.config import settings
-        if settings.SEPAY_BANK_ACCOUNT:
-            qr_url = (
-                f"https://qr.sepay.vn/img?"
-                f"acc={settings.SEPAY_BANK_ACCOUNT}"
-                f"&bank={settings.SEPAY_BANK_NAME or ''}"
-                f"&amount={total}"
-                f"&des={order_code}"
-            )
-    
+        from app.payment import get_provider
+
+        provider = get_provider(payment_method)
+        link = provider.create_payment_link(order)
+        qr_url = link.qr_url
+
     return order, qr_url
 
 
@@ -342,6 +339,15 @@ async def update_order_status(
     # Auto-update payment_status for COD when delivered
     if new_status == "delivered" and order.payment_method == "cod":
         order.payment_status = "paid"
+
+    # Tang sold_count khi don giao thanh cong
+    if new_status == "delivered":
+        for item in order.items:
+            await db.execute(
+                update(Product)
+                .where(Product.id == item.product_id)
+                .values(sold_count=Product.sold_count + item.qty)
+            )
     
     # Create history
     history = OrderStatusHistory(
@@ -419,22 +425,87 @@ async def update_payment_status(
     transaction_id: str | None = None,
 ) -> Order | None:
     """
-    Cap nhat trang thai thanh toan (SePay webhook).
-    Idempotent - chi update neu chua paid.
+    Cap nhat trang thai thanh toan (webhook gateway).
+    Idempotent: chi update neu chua paid; tu cho moi 1 transaction_id -> 1 don.
     """
     order = await get_order_by_code(db, order_code)
     if order is None:
         return None
-    
+
     # Idempotent - da paid roi thi skip
     if order.payment_status == "paid":
         return order
-    
+
+    # 1 giao dich khong duoc gan cho 2 don khac nhau
+    if transaction_id:
+        duplicate = await db.execute(
+            select(Order).where(
+                Order.transaction_id == transaction_id,
+                Order.id != order.id,
+            )
+        )
+        if duplicate.scalar_one_or_none() is not None:
+            logger.warning(
+                "Transaction %s da duoc gan cho don khac, bo qua don %s",
+                transaction_id,
+                order_code,
+            )
+            return order
+
     order.payment_status = "paid"
     order.paid_at = datetime.now(timezone.utc).isoformat()
     if transaction_id:
         order.transaction_id = transaction_id
-    
+
     await db.commit()
-    
+
     return await get_order_by_id(db, order.id)
+
+
+def order_to_dict(order: Order) -> dict[str, Any]:
+    """Chuyen order model sang dict (dung chung cho user API va admin API)."""
+    return {
+        "id": order.id,
+        "user_id": order.user_id,
+        "order_code": order.order_code,
+        "status": order.status,
+        "subtotal": str(order.subtotal),
+        "shipping_fee": str(order.shipping_fee),
+        "discount": str(order.discount),
+        "total": str(order.total),
+        "payment_method": order.payment_method,
+        "payment_status": order.payment_status,
+        "paid_at": order.paid_at,
+        "transaction_id": order.transaction_id,
+        "shipping_name": order.shipping_name,
+        "shipping_phone": order.shipping_phone,
+        "shipping_address": order.shipping_address,
+        "tracking_code": order.tracking_code,
+        "carrier": order.carrier,
+        "note": order.note,
+        "created_at": order.created_at,
+        "updated_at": order.updated_at,
+        "items": [
+            {
+                "id": item.id,
+                "product_id": item.product_id,
+                "product_name": item.product_name,
+                "product_price": str(item.product_price),
+                "product_image": item.product_image,
+                "variant_info": item.variant_info,
+                "qty": item.qty,
+                "subtotal": str(item.subtotal),
+            }
+            for item in order.items
+        ],
+        "status_history": [
+            {
+                "id": h.id,
+                "status": h.status,
+                "note": h.note,
+                "created_by": h.created_by,
+                "created_at": h.created_at,
+            }
+            for h in sorted(order.status_history, key=lambda x: x.created_at, reverse=True)
+        ],
+    }

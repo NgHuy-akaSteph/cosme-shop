@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query';
 import { MailOutlined, LockOutlined, UserOutlined } from '@ant-design/icons';
 import api from '../../api/axios';
-import { useAuthStore } from '../../store/authStore';
+import { useAuthStore, type User } from '../../store/authStore';
 import type { ApiError } from '../../types/api';
 import { getErrorMessage } from '../../types/api';
 
@@ -25,9 +25,9 @@ export default function RegisterPage() {
       const res = await api.post('/api/auth/register', data);
       return res.data;
     },
-    onSuccess: (data: { data: { user: unknown; access_token: string } }) => {
+    onSuccess: (data: { data: { user: User; access_token: string } }) => {
       const { user, access_token } = data.data;
-      login(user as any, access_token);
+      login(user, access_token);
       message.success('Đăng ký thành công!');
       
       // Redirect to previous page or home

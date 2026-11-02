@@ -1,11 +1,14 @@
 from decimal import Decimal
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import ForeignKey, Integer, Numeric, String
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, IdMixin
+
+if TYPE_CHECKING:
+    from app.model.order import Order
 
 
 class OrderItem(Base, IdMixin):
@@ -26,5 +29,5 @@ class OrderItem(Base, IdMixin):
     subtotal: Mapped[Decimal] = mapped_column(Numeric(12, 0), nullable=False)
     
     # Relationships
-    order: Mapped["Order"] = relationship("Order", backref="items")
+    order: Mapped["Order"] = relationship("Order", back_populates="items")
     product: Mapped["Product"] = relationship("Product", backref="order_items")

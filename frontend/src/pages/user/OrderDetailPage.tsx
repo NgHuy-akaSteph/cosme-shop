@@ -1,11 +1,13 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, Typography, Tag, Timeline, Table, Spin, Button, Descriptions, message, Popconfirm, Row, Col } from 'antd';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeftOutlined } from '@ant-design/icons';
+import { ArrowLeftOutlined, QrcodeOutlined } from '@ant-design/icons';
+import { useState } from 'react';
 import api from '../../api/axios';
 import { formatPrice, formatDate, statusColors, statusText } from '../../utils/constants';
 import type { ApiError } from '../../types/api';
 import { getErrorMessage } from '../../types/api';
+import QrPaymentModal from '../../components/QrPaymentModal';
 
 const { Title, Text } = Typography;
 
@@ -42,6 +44,7 @@ interface Order {
   shipping_address: string;
   tracking_code: string | null;
   created_at: string;
+  qr_url?: string | null;
   items: OrderItem[];
   status_history: StatusHistory[];
 }
@@ -50,6 +53,7 @@ export default function OrderDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const [showQr, setShowQr] = useState(false);
   
   const { data: order, isLoading } = useQuery({
     queryKey: ['order', id],
@@ -133,6 +137,19 @@ export default function OrderDetailPage() {
                 <Descriptions.Item label="Mã vận đơn">{order.tracking_code}</Descriptions.Item>
               )}
             </Descriptions>
+
+            {order.payment_method === 'sepay' &&
+              order.payment_status !== 'paid' &&
+              order.status !== 'cancelled' && (
+                <Button
+                  type="primary"
+                  icon={<QrcodeOutlined />}
+                  style={{ marginTop: 16 }}
+                  onClick={() => setShowQr(true)}
+                >
+                  Quét mã QR để thanh toán
+                </Button>
+              )}
             
             <Title level={5} style={{ marginTop: 24 }}>Sản phẩm</Title>
             <Table
@@ -183,6 +200,18 @@ export default function OrderDetailPage() {
         </Card>
         </Col>
       </Row>
+
+      <QrPaymentModal
+        visible={showQr}
+        qrUrl={order.qr_url ?? null}
+        orderId={order.id}
+        onClose={() => setShowQr(false)}
+        onPaid={() => {
+          message.success('Thanh toán thành công!');
+          queryClient.invalidateQueries({ queryKey: ['order', id] });
+        }}
+        onContinue={() => setShowQr(false)}
+      />
     </div>
   );
 }

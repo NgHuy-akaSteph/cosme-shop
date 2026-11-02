@@ -13,6 +13,13 @@ interface Category {
   description: string | null;
 }
 
+/** Payload gửi lên API khi tạo/cập nhật danh mục. */
+interface CategoryPayload {
+  name: string;
+  slug: string;
+  description?: string | null;
+}
+
 export default function AdminCategories() {
   const queryClient = useQueryClient();
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -28,7 +35,7 @@ export default function AdminCategories() {
   });
   
   const createMutation = useMutation({
-    mutationFn: async (values: any) => {
+    mutationFn: async (values: CategoryPayload) => {
       const res = await api.post('/api/categories', values);
       return res.data;
     },
@@ -40,7 +47,7 @@ export default function AdminCategories() {
   });
   
   const updateMutation = useMutation({
-    mutationFn: async ({ id, ...values }: any) => {
+    mutationFn: async ({ id, ...values }: CategoryPayload & { id: number }) => {
       const res = await api.patch(`/api/categories/${id}`, values);
       return res.data;
     },
@@ -78,7 +85,7 @@ export default function AdminCategories() {
     form.resetFields();
   };
   
-  const handleSubmit = (values: any) => {
+  const handleSubmit = (values: CategoryPayload) => {
     if (editingCategory) {
       updateMutation.mutate({ id: editingCategory.id, ...values });
     } else {
@@ -93,7 +100,7 @@ export default function AdminCategories() {
     { title: 'Mô tả', dataIndex: 'description' },
     {
       title: '',
-      render: (_: any, record: Category) => (
+      render: (_: unknown, record: Category) => (
         <Space>
           <Button type="link" icon={<EditOutlined />} onClick={() => handleOpenModal(record)} />
           <Popconfirm title="Xóa danh mục này?" onConfirm={() => deleteMutation.mutate(record.id)}>

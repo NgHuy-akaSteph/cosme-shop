@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ConfigProvider } from 'antd';
 import viVN from 'antd/locale/vi_VN';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { themeConfig } from './theme';
 
 // Layout
 import MainLayout from './components/MainLayout';
@@ -45,14 +46,7 @@ const queryClient = new QueryClient({
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <ConfigProvider
-        locale={viVN}
-        theme={{
-          token: {
-            colorPrimary: '#fa8c16',
-          },
-        }}
-      >
+      <ConfigProvider locale={viVN} theme={themeConfig}>
         <BrowserRouter>
           <Routes>
             {/* Public Routes */}

@@ -21,12 +21,15 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_SECONDS: int = 86400  # 1 day
     
     # CORS
-    CORS_ORIGINS: str = '["http://localhost:3000"]'
+    CORS_ORIGINS: str = '["http://localhost:5173"]'
 
     # SePay
-    SEPAY_API_KEY: str = ""
+    SEPAY_API_KEY: str = ""          # API Key xac thuc webhook (cach 1)
+    SEPAY_WEBHOOK_SECRET: str = ""   # Secret Key HMAC-SHA256 (cach 2, khuyen nghi)
     SEPAY_BANK_ACCOUNT: str = ""
     SEPAY_BANK_NAME: str = ""
+    SEPAY_API_TOKEN: str = ""        # Bearer token cho SePay API v2 (doi soat)
+    SEPAY_API_BASE_URL: str = "https://userapi.sepay.vn/v2"
 
     # Cloudinary
     CLOUDINARY_CLOUD_NAME: str = ""

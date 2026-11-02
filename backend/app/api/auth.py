@@ -1,7 +1,6 @@
 """Authentication API endpoints"""
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
@@ -113,7 +112,7 @@ async def get_me(
 
 @router.patch("/me", response_model=AuthResponse)
 async def update_me(
-    data: dict,
+    data: UserUpdate,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -121,15 +120,7 @@ async def update_me(
     Cap nhat thong tin nguoi dung hien tai.
     Can co token xac thuc.
     """
-    
-    try:
-        update_data = UserUpdate(**data)
-    except ValidationError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail={"message": "Dữ liệu không hợp lệ", "code": "VALIDATION_ERROR", "errors": e.errors(include_url=False, include_context=False)},
-        )
-    user = await update_user_profile(db, current_user, update_data)
+    user = await update_user_profile(db, current_user, data)
     
     return AuthResponse(
         data={

@@ -1,5 +1,6 @@
 import { Table, Card, Typography, Tag, Switch, message } from 'antd';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
 import api from '../../api/axios';
 
 const { Title } = Typography;
@@ -14,17 +15,29 @@ interface User {
   created_at: string;
 }
 
+interface UserListResponse {
+  data: User[];
+  total: number;
+  page: number;
+  size: number;
+}
+
+const PAGE_SIZE = 20;
+
 export default function AdminUsers() {
   const queryClient = useQueryClient();
-  
-  const { data: users, isLoading } = useQuery({
-    queryKey: ['admin', 'users'],
+  const [page, setPage] = useState(1);
+
+  const { data: usersData, isLoading } = useQuery({
+    queryKey: ['admin', 'users', page],
     queryFn: async () => {
-      const res = await api.get('/api/admin/users');
-      return res.data.data as User[];
+      const res = await api.get(`/api/admin/users?page=${page}&size=${PAGE_SIZE}`);
+      return res.data as UserListResponse;
     },
   });
-  
+
+  const users = usersData?.data ?? [];
+
   const toggleMutation = useMutation({
     mutationFn: async ({ id, is_active }: { id: number; is_active: boolean }) => {
       const res = await api.patch(`/api/admin/users/${id}/toggle-active`, null, {
@@ -37,7 +50,7 @@ export default function AdminUsers() {
       message.success('Cập nhật trạng thái thành công!');
     },
   });
-  
+
   const columns = [
     { title: 'ID', dataIndex: 'id', width: 60 },
     { title: 'Email', dataIndex: 'email' },
@@ -68,18 +81,24 @@ export default function AdminUsers() {
     },
     { title: 'Ngày tạo', dataIndex: 'created_at' },
   ];
-  
+
   return (
     <div>
       <Title level={2}>Quản lý người dùng</Title>
-      
+
       <Card>
         <Table
           dataSource={users}
           columns={columns}
           rowKey="id"
           loading={isLoading}
-          pagination={{ pageSize: 20 }}
+          pagination={{
+            current: page,
+            pageSize: PAGE_SIZE,
+            total: usersData?.total ?? 0,
+            showSizeChanger: false,
+            onChange: setPage,
+          }}
         />
       </Card>
     </div>

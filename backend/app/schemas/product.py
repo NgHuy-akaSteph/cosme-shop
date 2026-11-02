@@ -20,8 +20,9 @@ class VariantInfo(BaseModel):
 
 class ProductBase(BaseModel):
     """Base schema cho product"""
+
     name: str
-    slug: str
+    slug: str | None = None
     description: str | None = None
     price: Decimal
     sale_price: Decimal | None = None

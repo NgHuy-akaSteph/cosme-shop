@@ -13,6 +13,13 @@ interface Brand {
   description: string | null;
 }
 
+/** Payload gửi lên API khi tạo/cập nhật thương hiệu. */
+interface BrandPayload {
+  name: string;
+  slug: string;
+  description?: string | null;
+}
+
 export default function AdminBrands() {
   const queryClient = useQueryClient();
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -28,7 +35,7 @@ export default function AdminBrands() {
   });
   
   const createMutation = useMutation({
-    mutationFn: async (values: any) => {
+    mutationFn: async (values: BrandPayload) => {
       const res = await api.post('/api/brands', values);
       return res.data;
     },
@@ -40,7 +47,7 @@ export default function AdminBrands() {
   });
   
   const updateMutation = useMutation({
-    mutationFn: async ({ id, ...values }: any) => {
+    mutationFn: async ({ id, ...values }: BrandPayload & { id: number }) => {
       const res = await api.patch(`/api/brands/${id}`, values);
       return res.data;
     },
@@ -78,7 +85,7 @@ export default function AdminBrands() {
     form.resetFields();
   };
   
-  const handleSubmit = (values: any) => {
+  const handleSubmit = (values: BrandPayload) => {
     if (editingBrand) {
       updateMutation.mutate({ id: editingBrand.id, ...values });
     } else {
@@ -93,7 +100,7 @@ export default function AdminBrands() {
     { title: 'Mô tả', dataIndex: 'description' },
     {
       title: '',
-      render: (_: any, record: Brand) => (
+      render: (_: unknown, record: Brand) => (
         <Space>
           <Button type="link" icon={<EditOutlined />} onClick={() => handleOpenModal(record)} />
           <Popconfirm title="Xóa thương hiệu này?" onConfirm={() => deleteMutation.mutate(record.id)}>

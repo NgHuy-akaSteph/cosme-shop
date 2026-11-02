@@ -1,0 +1,26 @@
+/** Design tokens mau sac dung chung cho Cosme Shop - nganh my pham (nude/hong cam) */
+
+export const colors = {
+  primary: '#d9736a',
+  primarySoft: '#fdf1ee',
+  primaryDark: '#c05a51',
+  textBase: '#2c2622',
+  textSecondary: '#8a807a',
+  textMuted: '#5a514c',
+  surface: '#ffffff',
+  bgLayout: '#faf7f5',
+  border: '#f0e6e1',
+  success: '#5a9e6f',
+  warning: '#e0a458',
+  error: '#c85a5a',
+  info: '#7a9cc6',
+  mutedSurface: '#f5efec',
+  placeholderIcon: '#d9c8c0',
+  gradientWarm: '#f7e9e3',
+  gradientWarmEnd: '#fdf6f2',
+  gradientTint: '#f3e8e2',
+  surfaceMuted: '#f0f2f5',
+  dividerDefault: '#f0f0f0',
+  galleryPlaceholder: '#f7f2ef',
+  iconMuted: '#cccccc',
+} as const;

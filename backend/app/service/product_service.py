@@ -21,6 +21,18 @@ def generate_slug(name: str) -> str:
     return slug.strip('-')
 
 
+# Cac field cho phep gan gia tri None khi update (xoa du lieu cu)
+NULLABLE_FIELDS = {
+    "description",
+    "sale_price",
+    "skin_types",
+    "concerns",
+    "key_ingredients",
+    "free_from",
+    "variants",
+}
+
+
 async def get_product_by_id(db: AsyncSession, product_id: int) -> Product | None:
     """Lay product theo ID."""
     result = await db.execute(
@@ -103,18 +115,17 @@ async def get_products(
         query = query.where(effective_price <= max_price)
         count_query = count_query.where(effective_price <= max_price)
     
-    # Filter by skin types (JSON contains any)
+    # Filter by skin types (JSON contains any - OR semantics)
     if skin_types:
-        # Convert list to JSON array search
-        for skin_type in skin_types:
-            query = query.where(Product.skin_types.contains([skin_type]))
-            count_query = count_query.where(Product.skin_types.contains([skin_type]))
-    
-    # Filter by concerns (JSON contains any)
+        cond = or_(*[Product.skin_types.contains([st]) for st in skin_types])
+        query = query.where(cond)
+        count_query = count_query.where(cond)
+
+    # Filter by concerns (JSON contains any - OR semantics)
     if concerns:
-        for concern in concerns:
-            query = query.where(Product.concerns.contains([concern]))
-            count_query = count_query.where(Product.concerns.contains([concern]))
+        cond = or_(*[Product.concerns.contains([c]) for c in concerns])
+        query = query.where(cond)
+        count_query = count_query.where(cond)
     
     # Search by name
     if search:
@@ -248,8 +259,12 @@ async def update_product(
             raise ValueError("Slug đã tồn tại")
     
     for key, value in kwargs.items():
-        if value is not None and hasattr(product, key):
-            setattr(product, key, value)
+        if not hasattr(product, key):
+            continue
+        # Field nullable duoc phep gan None (vd: xoa sale_price, description...)
+        if value is None and key not in NULLABLE_FIELDS:
+            raise ValueError(f"Không thể đặt null cho trường bắt buộc: {key}")
+        setattr(product, key, value)
     
     await db.commit()
     await db.refresh(product)

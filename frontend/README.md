@@ -1,75 +1,44 @@
-# React + TypeScript + Vite
+# Cosme Shop - Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+React 19 + TypeScript + Vite 8 + antd 5 + TanStack Query + Zustand.
 
-Currently, two official plugins are available:
+## Setup
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-
+```bash
+cp .env.example .env
+npm install
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://npmx.dev/package/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://npmx.dev/package/eslint-plugin-react-dom) for React-specific lint rules:
+Vite dev server chạy ở `http://localhost:5173`. Backend API mặc định ở `http://localhost:8000`
+(khai báo trong `.env` qua `VITE_API_URL`).
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+> `.env` không được commit vào git. Mỗi máy mới cần copy từ `.env.example`.
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+## Scripts
+
+| Lệnh | Mô tả |
+|---|---|
+| `npm run dev` | Chạy dev server |
+| `npm run build` | Typecheck (`tsc -b`) + build production vào `dist/` |
+| `npm run lint` | Chạy ESLint |
+| `npm run preview` | Preview bản build |
+
+## Cấu trúc
 
 ```
+src/
+├── api/          # axios client + interceptors
+├── components/   # Layout, ProductCard, QrPaymentModal, home/*
+├── hooks/        # useProducts
+├── pages/        # Trang public + user/* + admin/*
+├── store/        # Zustand: authStore, cartStore
+├── theme/        # Design tokens (màu, radius, font) cho antd
+├── types/        # Type dùng chung: api.ts, product.ts
+└── utils/        # constants.ts (formatPrice, bộ lọc da/vấn đề da)
+```
+
+## Theme
+
+Màu chủ đạo và design token nằm tại `src/theme/theme.ts` + `src/theme/colors.ts`.
+Không hard-code hex rải rác trong component — dùng `colors.primary` từ `src/theme`.

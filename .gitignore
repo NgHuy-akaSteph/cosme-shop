@@ -1,4 +1,14 @@
-/plans
-.env.dev
-.env.prod
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+
+# Env
+.env
 .env.local
+.env.*.local
+
+# Node
+node_modules/
+dist/

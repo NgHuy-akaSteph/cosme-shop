@@ -12,6 +12,7 @@ import {
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
+import { colors } from '../theme';
 
 const { Sider, Content } = Layout;
 
@@ -82,7 +83,13 @@ export default function AdminLayout() {
       </Sider>
       
       <Layout style={{ marginLeft: 250 }}>
-        <Content style={{ padding: '24px', minHeight: '100vh', background: '#f0f2f5' }}>
+        <Content
+          style={{
+            padding: '24px',
+            minHeight: '100vh',
+            background: colors.surfaceMuted,
+          }}
+        >
           <Outlet />
         </Content>
       </Layout>

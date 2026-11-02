@@ -1,5 +1,6 @@
 """Main FastAPI application"""
 
+import logging
 import os
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
@@ -11,6 +12,11 @@ from fastapi.middleware.cors import CORSMiddleware
 import json
 
 from app.core.config import settings
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
 
 
 @asynccontextmanager
@@ -77,10 +83,13 @@ def create_app() -> FastAPI:
     ) -> JSONResponse:
         """Handle Pydantic validation errors."""
         errors = exc.errors()
+        first = errors[0] if errors else {}
+        msg = first.get("msg", "Dữ liệu không hợp lệ")
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
             content={
-                "detail": "Dữ liệu không hợp lệ",
+                "detail": f"Dữ liệu không hợp lệ: {msg}",
+                "message": f"Dữ liệu không hợp lệ: {msg}",
                 "code": "VALIDATION_ERROR",
                 "errors": errors,
             },
@@ -127,6 +136,7 @@ def create_app() -> FastAPI:
     from app.api.products import router as products_router
     from app.api.orders import router as orders_router
     from app.api.admin import router as admin_router
+    from app.api.admin_stats import router as admin_stats_router
     from app.api.wishlist import router as wishlist_router
     from app.api.payment import router as payment_router
     from app.api.upload import router as upload_router
@@ -138,6 +148,7 @@ def create_app() -> FastAPI:
     app.include_router(products_router)
     app.include_router(orders_router)
     app.include_router(admin_router)
+    app.include_router(admin_stats_router)
     app.include_router(wishlist_router)
     app.include_router(payment_router)
     app.include_router(upload_router)

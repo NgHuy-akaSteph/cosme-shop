@@ -72,12 +72,13 @@ Ba module chính:
 ### 2.4 Database (PostgreSQL 17)
 
 - Một database duy nhất: `cosme_shop`.
-- 8 bảng nghiệp vụ trong schema `public` (chi tiết ở mục 3).
+- 9 bảng nghiệp vụ trong schema `public` (chi tiết ở mục 3).
 - Không dùng `pgvector` — AI dùng Gemini API trực tiếp, không có embedding.
 
 ### 2.5 SePay Gateway
 
 - Vai trò: xác nhận chuyển khoản qua webhook.
+- Cơ chế xác thực: HMAC-SHA256 trên raw body (`X-SePay-Signature` + `X-SePay-Timestamp`), fallback API key.
 - Flow:
 
 ```mermaid
@@ -96,10 +97,11 @@ sequenceDiagram
     U->>Bank: Chuyen khoan noi dung ORDxxxx
     Bank->>SP: Giao dich moi
     SP->>BE: POST /api/payment/sepay-webhook
-    BE->>BE: Verify Apikey, regex order_code
+    BE->>BE: Verify HMAC-SHA256 raw body + timestamp skew
+    BE->>DB: INSERT payment_webhook_logs (idempotent theo tx_id)
     BE->>DB: Update payment_status=paid
     BE-->>SP: {"success": true}
-    FE-->>U: Hien thi "Da thanh toan" (polling)
+    FE-->>U: Hien thi "Da thanh toan" (polling 4s)
 ```
 
 ## 3. Thiết kế database
@@ -227,6 +229,18 @@ erDiagram
         int product_id FK
         timestamptz created_at
     }
+
+    payment_webhook_logs {
+        int id PK
+        string provider
+        string transaction_id UK
+        string order_code
+        int amount
+        json payload
+        string status
+        text error
+        timestamptz created_at
+    }
 ```
 
 ### 3.2 Cấu trúc JSON variants
@@ -297,12 +311,15 @@ erDiagram
 | Orders | POST | `/api/orders/{id}/cancel` | User |
 | Orders | GET | `/api/admin/orders` | Admin |
 | Orders | PATCH | `/api/admin/orders/{id}/status` | Admin |
-| Payment | POST | `/api/payment/sepay-webhook` | SePay |
-| Payment | GET | `/api/payment/status/{order_id}` | User |
+| Users | GET | `/api/admin/users` | Admin (phân trang server-side) |
+| Users | PATCH | `/api/admin/users/{id}/toggle-active` | Admin |
+| Dashboard | GET | `/api/admin/stats` | Admin (thống kê tổng quan) |
+| Payment | POST | `/api/payment/sepay-webhook` | SePay (HMAC-SHA256) |
+| Payment | GET | `/api/payment/status/{order_id}` | User (chủ đơn) hoặc Admin |
+| Payment | POST | `/api/payment/reconcile` | Admin (đối soát SePay API v2) |
 | Wishlist | GET | `/api/wishlist` | User |
 | Wishlist | POST | `/api/wishlist/{product_id}` | User |
 | Wishlist | DELETE | `/api/wishlist/{product_id}` | User |
-| AI | POST | `/api/ai/routine` | Public |
 
 ### 4.3 AI Service endpoints (nội bộ)
 
@@ -395,13 +412,19 @@ sequenceDiagram
 
 ### 6.3 Webhook SePay
 
-- Verify `Authorization: Apikey <SEPAY_KEY>` trong header.
-- Chỉ xử lý khi API key khớp.
-- Idempotent: nếu đơn đã `paid` thì không update lại.
+- Xác thực ưu tiên HMAC-SHA256 trên **raw body** (header `X-SePay-Signature: sha256=<hex>`, `X-SePay-Timestamp`).
+- Chuỗi ký: `HMAC_SHA256(secret, f"{timestamp}.{raw_body}")`, so sánh constant-time (`hmac.compare_digest`).
+- Chống replay: timestamp lệch quá 300 giây → 401.
+- Fallback: `Authorization: Apikey <SEPAY_API_KEY>` nếu không bật HMAC.
+- Idempotent: unique constraint `(provider, transaction_id)` trên bảng `payment_webhook_logs` → giao dịch trùng bị bỏ qua.
+- Đơn đã `cancelled` → KHÔNG đánh dấu paid, ghi log `cancelled` để hoàn tiền thủ công.
+- Thiếu tiền (`amount_in < total`) → ghi log `amount_mismatch`, giữ `unpaid`.
+- `transaction_id` được bảo đảm unique trên `orders` (partial unique index) → 1 giao dịch không gán cho 2 đơn.
+- Đối soát thủ công: `POST /api/payment/reconcile` quét SePay API v2 và đánh paid các đơn còn `unpaid`.
 
 ### 6.4 CORS
 
-- `allow_origins=["http://localhost:3000"]`
+- `allow_origins` đọc từ biến môi trường `CORS_ORIGINS` (JSON array), mặc định `["http://localhost:3000"]`.
 - `allow_credentials=True`
 
 ### 6.5 Upload ảnh

@@ -78,7 +78,7 @@ Service dependency:
 | pydantic-settings | 2.15.x | Đọc `.env` |
 | httpx | 0.28.x | Internal HTTP (nếu cần) |
 
-### 3.3 Frontend (`/fe` + `package.json`)
+### 3.3 Frontend (`/frontend` + `package.json`)
 
 | Package | Version chính | Mục đích |
 |---|---|---|
@@ -86,15 +86,28 @@ Service dependency:
 | react-dom | 19.x | React DOM |
 | react-router-dom | 6.x | Routing |
 | @tanstack/react-query | 5.x | Server state |
-| zustand | 4.x | Client state |
+| zustand | 5.x | Client state |
 | axios | 1.x | HTTP client |
 | antd | 5.x | UI components |
-| vite | 5.x | Build tool / dev server |
-| typescript | 5.x | Type system |
+| vite | 8.x | Build tool / dev server |
+| typescript | 6.x | Type system |
 | @vitejs/plugin-react | latest | React plugin cho Vite |
-| vitest | 2.x | Unit test (devDep) |
-| @testing-library/react | latest | Component test (devDep) |
 | eslint + typescript-eslint | latest | Lint (devDep) |
+
+### 3.4 Backend test (`/backend` + `requirements-dev.txt`)
+
+| Package | Version chính | Mục đích |
+|---|---|---|
+| pytest | 9.x | Test runner |
+| pytest-asyncio | 1.4.x | Async test support (`asyncio_mode = auto`) |
+| httpx | 0.28.x | ASGI transport cho test API |
+
+Biến môi trường riêng cho test (không dùng DB dev):
+
+| Key | Mô tả |
+|---|---|
+| `TEST_DATABASE_URL` | Connection string DB test. Nếu không đặt → toàn bộ suite bị `skip` (tránh xóa nhầm dữ liệu dev) |
+| `TEST_DATABASE_SCHEMA` | Schema riêng biệt lập (VD `cosme_test`), dùng khi DB test không tách được database. Fixture tự bỏ `-pooler` khỏi host Neon và verify `current_schema()` trước khi truncate |
 
 ## 4. Biến môi trường
 
@@ -122,7 +135,19 @@ AI_SERVICE_URL=http://ai:8001
 SEPAY_API_KEY=
 SEPAY_BANK_ACCOUNT=
 SEPAY_BANK_NAME=
+SEPAY_WEBHOOK_SECRET=
+SEPAY_API_TOKEN=
+SEPAY_API_BASE_URL=https://userapi.sepay.vn/v2
 ```
+
+Biến SePay:
+
+| Key | Mục đích |
+|---|---|
+| `SEPAY_API_KEY` | API key webhook (fallback khi không dùng HMAC) |
+| `SEPAY_WEBHOOK_SECRET` | Secret ký HMAC-SHA256 webhook — khuyến nghị bật |
+| `SEPAY_API_TOKEN` | Bearer token cho SePay API v2 (đối soát) |
+| `SEPAY_API_BASE_URL` | Base URL SePay API, mặc định `https://userapi.sepay.vn/v2` (endpoint đối soát: `{base}/transactions`) |
 
 ### 4.2 `ai/.env`
 
@@ -153,6 +178,9 @@ VITE_API_URL=http://localhost:8000
 | `CORS_ORIGINS` | backend | Không | `["http://localhost:3000"]` | Whitelist origin |
 | `AI_SERVICE_URL` | backend | Có | `http://ai:8001` | URL AI service nội bộ |
 | `SEPAY_API_KEY` | backend | Có (prod) | -- | API key webhook SePay |
+| `SEPAY_WEBHOOK_SECRET` | backend | Không | -- | Secret HMAC-SHA256 webhook (khuyến nghị bật) |
+| `SEPAY_API_TOKEN` | backend | Không | -- | Bearer token SePay API v2 (đối soát) |
+| `SEPAY_API_BASE_URL` | backend | Không | `https://userapi.sepay.vn/v2` | Base URL SePay API |
 | `SEPAY_BANK_ACCOUNT` | backend | Có | -- | STK nhận CK |
 | `SEPAY_BANK_NAME` | backend | Có | -- | Tên ngân hàng |
 | `LLM_PROVIDER` | ai | Không | `gemini` | `gemini` \| `ollama` |
@@ -210,7 +238,29 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8000
 ```
 
-### 5.6 AI service dev
+### 5.6 Chạy test backend
+
+```bash
+cd backend
+source .venv/bin/activate
+
+# Bắt buộc: DB test riêng + schema riêng (không xóa dữ liệu dev)
+export TEST_DATABASE_URL="$DATABASE_URL"
+export TEST_DATABASE_SCHEMA="cosme_test"
+
+pytest -q
+```
+
+Không đặt `TEST_DATABASE_URL` → suite tự `skip` với lý do an toàn.
+
+**Cảnh báo về Neon pooler (pgBouncer):**
+
+- Neon pooler giữ `search_path` ở server-side → `SET search_path` của connection trước sẽ "dính" vào các connection sau, khiến app dev vô tình trỏ sang schema test.
+- Vì vậy fixture test tự bỏ `-pooler` khỏi host (`ep-xxx-pooler...` → `ep-xxx...`) để mỗi connection là session mới.
+- Fixture `_prepare_schema` còn kiểm tra `current_schema()` trước khi `TRUNCATE` — nếu trỏ sai schema, test **fail ngay** thay vì xóa dữ liệu dev.
+- `Base.metadata.create_all` bỏ qua `search_path` (dùng `pg_table_is_visible`), nên fixture tạo table bằng metadata copy có `schema="cosme_test"`.
+
+### 5.7 AI service dev
 
 ```bash
 cd ai

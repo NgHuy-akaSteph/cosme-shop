@@ -97,6 +97,17 @@
 | 2.4.8 | C-ORDER-DETAIL | Click on an order | Show status, items, total, shipping | ☐ |
 | 2.4.9 | C-ORDER-CANCEL | Cancel pending order | Status → "cancelled" | ☐ |
 
+### 2.5 Payment (SePay)
+
+| # | Test ID | Action | Expected Result | Pass |
+|---|---|---|---|---|
+| 2.5.1 | C-CHECKOUT-SEPAY | Fill shipping, choose SePay, submit | Order created 201, QR code + bank info shown | ☐ |
+| 2.5.2 | C-PAY-POLL | After QR shown, keep page open | QR modal polls status every 4s | ☐ |
+| 2.5.3 | C-PAY-STATUS | `GET /api/payment/status/{id}` without token | 401 | ☐ |
+| 2.5.4 | C-PAY-STATUS-OTHER | `GET /api/payment/status/{id}` với user khác | 403 | ☐ |
+| 2.5.5 | C-CART-KEEP | Payment failed / đóng modal | Giỏ hàng KHÔNG bị xóa | ☐ |
+| 2.5.6 | C-CART-CLEAR | Payment confirmed | Giỏ hàng được xóa sau khi xác nhận paid | ☐ |
+
 ---
 
 ## 3. Admin Persona — 16 cases
@@ -150,6 +161,15 @@
 |---|---|---|---|---|
 | 3.6.1 | A-USER-LIST | Visit `/admin/users` | Table all users | ☐ |
 | 3.6.2 | A-USER-DEACTIVATE | Toggle active on a test user | is_active=false, user can't login | ☐ |
+| 3.6.3 | A-USER-PAGINATION | Page through users list | Server-side pagination, `total` = tổng số user thật | ☐ |
+
+### 3.7 Payment (Admin)
+
+| # | Test ID | Action | Expected Result | Pass |
+|---|---|---|---|---|
+| 3.7.1 | A-PAY-RECONCILE | `POST /api/payment/reconcile` (admin) | 200, trả `{scanned, matched, marked_paid, skipped}` | ☐ |
+| 3.7.2 | A-PAY-RECONCILE-GUARD | `POST /api/payment/reconcile` (user thường) | 403 | ☐ |
+| 3.7.3 | A-ORD-SOLD-COUNT | Chuyển đơn COD → `delivered` | `sold_count` của sản phẩm tăng theo qty | ☐ |
 
 ---
 
@@ -160,10 +180,13 @@
 | 4.1 | X-SEC-ISOLATION | User A login, GET `/api/orders` — verify only own orders | No orders from user B visible | ☐ |
 | 4.2 | X-VALIDATION | POST `/api/auth/register` missing email field | 400, validation error | ☐ |
 | 4.3 | X-PAGINATION | GET `/api/products?page=2&size=5` | 5 different products, total=20 | ☐ |
-| 4.4 | X-FILTER-COMBO | GET `/api/products?skin_types=oily,combination&min_price=100000&max_price=300000` | Filtered + counted | ☐ |
+| 4.4 | X-FILTER-COMBO | GET `/api/products?skin_types=oily,combination&min_price=100000&max_price=300000` | Filtered + counted, semantics **OR** (khớp 1 trong 2 loại da) | ☐ |
 | 4.5 | X-CORS | Frontend at :5173 calls backend at :8000 | CORS allows, no preflight error | ☐ |
 | 4.6 | X-PERF-LIST | GET `/api/products?size=20` response time | < 500ms | ☐ |
 | 4.7 | X-LAZY-IMG | Visit product list, scroll | Images lazy load, no 404s | ☐ |
+| 4.8 | X-WEBHOOK-SIGN | POST webhook với chữ ký HMAC sai | 401 | ☐ |
+| 4.9 | X-WEBHOOK-REPLAY | POST webhook với timestamp cũ > 300s | 401 | ☐ |
+| 4.10 | X-WEBHOOK-IDEMPOTENT | Gửi lại cùng 1 webhook 3 lần | Chỉ 1 dòng `payment_webhook_logs`, đơn paid 1 lần | ☐ |
 
 ---
 
@@ -229,7 +252,10 @@ When you find a bug, file it with:
 | `/api/admin/orders/{id}/status` | PATCH | Admin | A-ORD-STATUS |
 | `/api/admin/users` | GET | Admin | A-USER-LIST |
 | `/api/admin/users/{id}/toggle-active` | PATCH | Admin | A-USER-DEACTIVATE |
-| `/api/payment/sepay-webhook` | POST | - | (SePay integration) |
+| `/api/admin/stats` | GET | Admin | A-DASH-VIEW |
+| `/api/payment/sepay-webhook` | POST | HMAC/API key | (SePay integration) |
+| `/api/payment/status/{id}` | GET | User/Admin | C-PAY-STATUS |
+| `/api/payment/reconcile` | POST | Admin | A-PAY-RECONCILE |
 
 ## Appendix B: Known Limitations (post-Phase 04)
 
@@ -237,6 +263,26 @@ When you find a bug, file it with:
 - Email confirm flow NOT implemented — register = auto-login
 - Wishlist not auto-cleared when product soft-deleted (consider Phase 05)
 - AI/Routine Builder module fully removed in cleanup (Oct 2026)
+
+## Appendix B2: Automated Test Suite (Oct 2026)
+
+Backend có pytest suite tại `backend/tests/`:
+
+```bash
+cd backend
+export TEST_DATABASE_URL="$DATABASE_URL"
+export TEST_DATABASE_SCHEMA="cosme_test"
+.venv/bin/pytest -q
+```
+
+| File | Phạm vi cover |
+|---|---|
+| `test_auth.py` | Register (thành công / trùng email / mật khẩu ngắn), login, `/me`, khoá tài khoản |
+| `test_products.py` | Filter OR `skin_types`/`concerns`, update null field, soft delete, phân quyền admin, `/api/admin/stats` |
+| `test_orders.py` | Tạo đơn COD, vượt stock, SĐT sai, sản phẩm ngừng bán, huỷ đơn hoàn stock, state transition, `sold_count` |
+| `test_payment.py` | Webhook HMAC (sai chữ ký / timestamp hết hạn / idempotent), amount mismatch, đơn đã huỷ, quyền `payment/status`, `reconcile` |
+
+Lưu ý: `TEST_DATABASE_URL` bắt buộc — thiếu thì suite tự `skip` (tránh xoá nhầm dữ liệu dev).
 
 ## Appendix C: How to Reset Environment
 

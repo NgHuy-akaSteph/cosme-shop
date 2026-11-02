@@ -6,7 +6,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.session import get_db
 from app.api.deps import get_current_user, get_current_admin
 from app.model.user import User
-from app.service.user_service import get_all_users, toggle_user_active, get_user_by_id
+from app.service.user_service import (
+    count_users,
+    get_all_users,
+    get_user_by_id,
+    toggle_user_active,
+)
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/api/admin/users", tags=["admin-users"])
@@ -48,7 +53,7 @@ async def list_users(
     
     return UserListResponse(
         data=user_list,
-        total=len(user_list),
+        total=await count_users(db),
         page=page,
         size=size,
     )

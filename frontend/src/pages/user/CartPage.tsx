@@ -1,20 +1,21 @@
 import { Card, Table, Button, Empty, Typography, InputNumber, Popconfirm, Row, Col } from 'antd';
 import { DeleteOutlined, ShoppingOutlined } from '@ant-design/icons';
 import { Link, useNavigate } from 'react-router-dom';
-import { useCartStore } from '../../store/cartStore';
+import { useCartStore, type CartItem } from '../../store/cartStore';
 import { formatPrice, SHIPPING_FEE, SHIPPING_FREE_THRESHOLD } from '../../utils/constants';
+import { colors } from '../../theme';
 
 const { Title, Text } = Typography;
 
 export default function CartPage() {
   const navigate = useNavigate();
   const { items, updateQty, removeItem, getTotal } = useCartStore();
-  
+
   const columns = [
     {
       title: 'Sản phẩm',
       dataIndex: 'name',
-      render: (_: any, record: any) => (
+      render: (_: unknown, record: CartItem) => (
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           {record.image_url && (
             <img
@@ -42,7 +43,7 @@ export default function CartPage() {
     {
       title: 'Số lượng',
       dataIndex: 'qty',
-      render: (_: any, record: any) => (
+      render: (_: unknown, record: CartItem) => (
         <InputNumber
           min={1}
           value={record.qty}
@@ -52,11 +53,11 @@ export default function CartPage() {
     },
     {
       title: 'Thành tiền',
-      render: (_: any, record: any) => formatPrice(record.price * record.qty),
+      render: (_: unknown, record: CartItem) => formatPrice(record.price * record.qty),
     },
     {
       title: '',
-      render: (_: any, record: any) => (
+      render: (_: unknown, record: CartItem) => (
         <Popconfirm
           title="Xóa sản phẩm?"
           onConfirm={() => removeItem(record.product_id, record.variant_id)}
@@ -131,11 +132,11 @@ export default function CartPage() {
               display: 'flex',
               justifyContent: 'space-between',
               padding: '16px 0',
-              borderTop: '1px solid #f0f0f0',
+              borderTop: `1px solid ${colors.dividerDefault}`,
               marginBottom: 16,
             }}>
               <Text strong>Tổng:</Text>
-              <Text strong style={{ fontSize: 18, color: '#fa8c16' }}>
+              <Text strong style={{ fontSize: 18, color: colors.primary }}>
                 {formatPrice(total)}
               </Text>
             </div>

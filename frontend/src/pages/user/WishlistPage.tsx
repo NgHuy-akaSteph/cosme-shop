@@ -3,6 +3,7 @@ import { DeleteOutlined, ShoppingOutlined, HeartOutlined } from '@ant-design/ico
 import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../../api/axios';
+import { colors } from '../../theme';
 
 const { Title, Text } = Typography;
 
@@ -46,7 +47,7 @@ export default function WishlistPage() {
   const columns = [
     {
       title: 'Sản phẩm',
-      render: (_: any, record: WishlistItem) => (
+      render: (_: unknown, record: WishlistItem) => (
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           {record.product.image_url && (
             <img
@@ -68,20 +69,20 @@ export default function WishlistPage() {
     },
     {
       title: 'Giá',
-      render: (_: any, record: WishlistItem) => (
+      render: (_: unknown, record: WishlistItem) => (
         record.product.sale_price ? (
           <>
             <Text delete style={{ marginRight: 8 }}>{formatPrice(record.product.price)}</Text>
-            <Text strong style={{ color: '#fa8c16' }}>{formatPrice(record.product.sale_price)}</Text>
+            <Text strong style={{ color: colors.primary }}>{formatPrice(record.product.sale_price)}</Text>
           </>
         ) : (
-          <Text strong style={{ color: '#fa8c16' }}>{formatPrice(record.product.price)}</Text>
+          <Text strong style={{ color: colors.primary }}>{formatPrice(record.product.price)}</Text>
         )
       ),
     },
     {
       title: '',
-      render: (_: any, record: WishlistItem) => (
+      render: (_: unknown, record: WishlistItem) => (
         <Popconfirm
           title="Xóa khỏi wishlist?"
           onConfirm={() => removeMutation.mutate(record.product_id)}
@@ -98,7 +99,7 @@ export default function WishlistPage() {
     return (
       <div style={{ textAlign: 'center', padding: '60px 0' }}>
         <Empty
-          image={<HeartOutlined style={{ fontSize: 64, color: '#ccc' }} />}
+          image={<HeartOutlined style={{ fontSize: 64, color: colors.iconMuted }} />}
           description="Chưa có sản phẩm yêu thích"
         >
           <Link to="/products">

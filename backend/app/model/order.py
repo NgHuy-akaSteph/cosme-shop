@@ -1,9 +1,14 @@
 from decimal import Decimal
+from typing import TYPE_CHECKING
 
 from sqlalchemy import ForeignKey, Integer, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, IdMixin, TimestampMixin
+
+if TYPE_CHECKING:
+    from app.model.order_item import OrderItem
+    from app.model.order_status_history import OrderStatusHistory
 
 
 class Order(Base, IdMixin, TimestampMixin):
@@ -43,3 +48,9 @@ class Order(Base, IdMixin, TimestampMixin):
     
     # Relationships
     user: Mapped["User"] = relationship("User", backref="orders")
+    items: Mapped[list["OrderItem"]] = relationship(
+        "OrderItem", back_populates="order", cascade="all, delete-orphan"
+    )
+    status_history: Mapped[list["OrderStatusHistory"]] = relationship(
+        "OrderStatusHistory", back_populates="order", cascade="all, delete-orphan"
+    )
