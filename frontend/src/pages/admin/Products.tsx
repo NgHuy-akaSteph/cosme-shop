@@ -11,7 +11,7 @@ import {
   Input,
   InputNumber,
   Select,
-  message,
+  App,
 } from 'antd';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -70,6 +70,7 @@ function formatPrice(price: number): string {
 
 export default function AdminProducts() {
   const queryClient = useQueryClient();
+  const { message } = App.useApp();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<AdminProduct | null>(null);
   const [form] = Form.useForm<ProductFormValues>();

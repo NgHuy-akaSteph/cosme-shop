@@ -5,7 +5,7 @@ import api from '../../api/axios';
 import { formatPrice, statusColors, statusText } from '../../utils/constants';
 import type { ApiError } from '../../types/api';
 import { getErrorMessage } from '../../types/api';
-import { message } from 'antd';
+import { App } from 'antd';
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
@@ -64,6 +64,7 @@ const PAGE_SIZE = 20;
 
 export default function AdminOrders() {
   const queryClient = useQueryClient();
+  const { message } = App.useApp();
   const [statusFilter, setStatusFilter] = useState<string | undefined>(undefined);
   const [page, setPage] = useState(1);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);

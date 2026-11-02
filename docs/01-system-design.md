@@ -520,4 +520,4 @@ ngrok http 8000
 | COD + SePay | COD ổn định, SePay có điểm nhấn |
 | Không refresh token | Overkill cho đồ án |
 | PostgreSQL 17 | Phiên bản stable mới nhất, asyncpg hỗ trợ đầy đủ |
-| Frontend TypeScript + React 19 | Type safety, ecosystem mới |
+| Frontend TypeScript + React 18 | Type safety, tương thích chính thức với antd v5 |

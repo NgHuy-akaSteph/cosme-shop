@@ -1,4 +1,4 @@
-import { Form, Input, Button, Card, Typography, message } from 'antd';
+import { Form, Input, Button, Card, Typography, App } from 'antd';
 import { useMutation } from '@tanstack/react-query';
 import { UserOutlined, MailOutlined, PhoneOutlined, LockOutlined } from '@ant-design/icons';
 import api from '../../api/axios';
@@ -23,6 +23,7 @@ interface ChangePasswordPayload {
 
 export default function ProfilePage() {
   const { user, updateUser } = useAuthStore();
+  const { message } = App.useApp();
   const [form] = Form.useForm();
   const [passwordForm] = Form.useForm();
 

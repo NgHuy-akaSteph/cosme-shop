@@ -6,7 +6,7 @@ import {
   Typography,
   Spin,
   Button,
-  message,
+  App,
   Breadcrumb,
   Select,
   Tabs,
@@ -33,6 +33,7 @@ export default function ProductDetailPage() {
   const navigate = useNavigate();
   const { user } = useAuthStore();
   const { addItem } = useCartStore();
+  const { message } = App.useApp();
 
   const [selectedVariant, setSelectedVariant] = useState<string | undefined>(undefined);
   const [qty, setQty] = useState(1);

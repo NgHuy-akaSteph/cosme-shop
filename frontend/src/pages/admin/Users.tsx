@@ -1,4 +1,4 @@
-import { Table, Card, Typography, Tag, Switch, message } from 'antd';
+import { Table, Card, Typography, Tag, Switch, App } from 'antd';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import api from '../../api/axios';
@@ -26,6 +26,7 @@ const PAGE_SIZE = 20;
 
 export default function AdminUsers() {
   const queryClient = useQueryClient();
+  const { message } = App.useApp();
   const [page, setPage] = useState(1);
 
   const { data: usersData, isLoading } = useQuery({

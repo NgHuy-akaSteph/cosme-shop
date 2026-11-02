@@ -1,4 +1,4 @@
-import { Form, Input, Button, Card, Typography, message } from 'antd';
+import { Form, Input, Button, Card, Typography, App } from 'antd';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query';
 import { MailOutlined, LockOutlined, UserOutlined } from '@ant-design/icons';
@@ -19,6 +19,7 @@ export default function RegisterPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { login } = useAuthStore();
+  const { message } = App.useApp();
   
   const registerMutation = useMutation({
     mutationFn: async (data: RegisterForm) => {

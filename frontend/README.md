@@ -1,6 +1,6 @@
 # Cosme Shop - Frontend
 
-React 19 + TypeScript + Vite 8 + antd 5 + TanStack Query + Zustand.
+React 18 + TypeScript + Vite 8 + antd 5 + TanStack Query + Zustand.
 
 ## Setup
 

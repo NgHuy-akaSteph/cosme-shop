@@ -1,5 +1,5 @@
 import { useMutation } from '@tanstack/react-query';
-import { Form, Input, Button, Card, Typography, Radio, message, Row, Col } from 'antd';
+import { Form, Input, Button, Card, Typography, Radio, App, Row, Col } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import { useCartStore } from '../../store/cartStore';
 import api from '../../api/axios';
@@ -29,6 +29,7 @@ interface CheckoutResponse {
 export default function CheckoutPage() {
   const navigate = useNavigate();
   const { items, getTotal, clearCart } = useCartStore();
+  const { message } = App.useApp();
   const [form] = Form.useForm();
   const [paymentMethod, setPaymentMethod] = useState('cod');
   const [showQrModal, setShowQrModal] = useState(false);

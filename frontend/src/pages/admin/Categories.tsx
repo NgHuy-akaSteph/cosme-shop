@@ -1,4 +1,4 @@
-import { Table, Button, Card, Typography, Space, Modal, Form, Input, Popconfirm, message } from 'antd';
+import { Table, Button, Card, Typography, Space, Modal, Form, Input, Popconfirm, App } from 'antd';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
@@ -22,6 +22,7 @@ interface CategoryPayload {
 
 export default function AdminCategories() {
   const queryClient = useQueryClient();
+  const { message } = App.useApp();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [form] = Form.useForm();

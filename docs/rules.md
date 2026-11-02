@@ -35,7 +35,7 @@ Các tài liệu liên quan:
 
 ### 2.3 Frontend (`/fe`)
 
-- Vite + React 19 + **TypeScript** (KHÔNG dùng JavaScript).
+- Vite + React 18 + **TypeScript** (KHÔNG dùng JavaScript).
 - React Router v6.
 - Zustand (client state: auth, cart, notification).
 - TanStack Query v5 (server state).

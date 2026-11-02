@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from 'react-router-dom';
-import { Card, Typography, Tag, Timeline, Table, Spin, Button, Descriptions, message, Popconfirm, Row, Col } from 'antd';
+import { Card, Typography, Tag, Timeline, Table, Spin, Button, Descriptions, App, Popconfirm, Row, Col } from 'antd';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeftOutlined, QrcodeOutlined } from '@ant-design/icons';
 import { useState } from 'react';
@@ -53,6 +53,7 @@ export default function OrderDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { message } = App.useApp();
   const [showQr, setShowQr] = useState(false);
   
   const { data: order, isLoading } = useQuery({
