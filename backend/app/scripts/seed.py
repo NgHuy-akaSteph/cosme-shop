@@ -2,7 +2,6 @@
 
 import asyncio
 import sys
-import hashlib
 from datetime import datetime, timezone
 from pathlib import Path
 from decimal import Decimal
@@ -17,11 +16,41 @@ from app.model.brand import Brand
 from app.model.product import Product
 from app.model.product_image import ProductImage
 from app.core.security import hash_password
+from app.core.cloudinary import upload_image, build_product_folder
 
 
-def _make_public_id(url: str, slug: str) -> str:
-    """Tao public_id determinstic nhung unique per product (slug + url hash)."""
-    return "seed_" + hashlib.md5(f"{slug}|{url}".encode("utf-8")).hexdigest()[:16]
+async def _download_image(url: str) -> bytes:
+    """Tai anh tu URL (dung cho migrate seed len Cloudinary)."""
+    import httpx
+
+    async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
+        response = await client.get(url)
+        response.raise_for_status()
+        return response.content
+
+
+async def _upload_to_cloudinary(content: bytes, product_id: int) -> dict:
+    """
+    Upload noi dung anh len Cloudinary.
+
+    Args:
+        content: Bytes cua file anh
+        product_id: ID product (dung de dat folder rieng)
+
+    Returns dict voi public_id, secure_url, width, height, format.
+    """
+    result = upload_image(
+        content,
+        folder=build_product_folder(product_id),
+        filename=f"seed_{product_id}.jpg",
+    )
+    return {
+        "public_id": result["public_id"],
+        "secure_url": result["secure_url"],
+        "width": result.get("width"),
+        "height": result.get("height"),
+        "format": result.get("format"),
+    }
 
 
 async def seed_database():
@@ -469,6 +498,12 @@ async def seed_database():
             },
         ]
         
+        # Cache theo URL goc: 20 anh seed chi dung ~8 URL Unsplash ->
+        # tai 1 lan moi URL (tiet kiem bandwidth).
+    # LUON Y: moi product upload rieng (khong dung chung public_id) vi
+    # `public_id` co UNIQUE constraint - anh trung nhau van la asset rieng.
+        downloaded_by_url: dict[str, bytes | None] = {}
+
         for prod_data in products_data:
             # Tach image_url ra de tao ProductImage rieng
             image_url = prod_data.pop("image_url", None)
@@ -481,15 +516,33 @@ async def seed_database():
             await db.flush()  # Lay product.id
 
             if image_url:
-                img = ProductImage(
-                    product_id=prod.id,
-                    public_id=_make_public_id(image_url, prod_data.get("slug", str(prod.id))),
-                    url=image_url,
-                    secure_url=image_url,
-                    position=0,
-                    is_main=True,
-                )
-                db.add(img)
+                if image_url not in downloaded_by_url:
+                    try:
+                        downloaded_by_url[image_url] = await _download_image(image_url)
+                    except Exception as exc:
+                        print(f"Warning: download failed for {image_url}: {exc}")
+                        downloaded_by_url[image_url] = None
+
+                content = downloaded_by_url.get(image_url)
+                if content:
+                    try:
+                        uploaded = await _upload_to_cloudinary(content, prod.id)
+                    except Exception as exc:
+                        print(f"Warning: upload failed for {image_url}: {exc}")
+                        uploaded = None
+
+                    if uploaded:
+                        img = ProductImage(
+                            product_id=prod.id,
+                            public_id=uploaded["public_id"],
+                            secure_url=uploaded["secure_url"],
+                            width=uploaded.get("width"),
+                            height=uploaded.get("height"),
+                            format=uploaded.get("format"),
+                            position=0,
+                            is_main=True,
+                        )
+                        db.add(img)
 
         print(f"Created {len(products_data)} products with images")
 

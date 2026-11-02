@@ -68,11 +68,14 @@ export default function ProductDetailPage() {
     return <Text>Không tìm thấy sản phẩm</Text>;
   }
 
+  // Dung bien the URL theo kich co hien thi (sinh tu Cloudinary public_id)
   const galleryImages = product.images?.length
-    ? product.images.map((img) => img.secure_url || img.url)
-    : product.image_url
-      ? [product.image_url]
-      : [];
+    ? product.images.map((img) => img.image_urls?.detail ?? img.secure_url)
+    : product.image_urls?.detail
+      ? [product.image_urls.detail]
+      : product.image_url
+        ? [product.image_url]
+        : [];
 
   const selectedVariantObj = product.variants?.find((v) => v.id === selectedVariant);
   const maxQty = selectedVariantObj?.stock ?? product.stock ?? 0;
@@ -106,7 +109,7 @@ export default function ProductDetailPage() {
         variant_id: selectedVariant,
         name: product.name,
         price: Number(effectivePrice),
-        image_url: product.image_url || undefined,
+        image_url: product.image_urls?.thumb ?? product.image_url ?? undefined,
         variant_name: selectedVariantObj?.name,
       },
       qty

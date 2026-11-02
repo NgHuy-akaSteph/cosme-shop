@@ -397,7 +397,8 @@ export default api;
 | `users` | `id`, `email` UNIQUE, `password_hash`, `full_name`, `phone`, `address`, `avatar_url`, `role`, `is_active`, `created_at`, `updated_at` |
 | `categories` | `id`, `name`, `slug` UNIQUE, `description`, `image_url`, `created_at`, `updated_at` |
 | `brands` | `id`, `name`, `slug` UNIQUE, `logo_url`, `description`, `created_at`, `updated_at` |
-| `products` | `id`, `name`, `slug` UNIQUE, `description`, `price`, `sale_price`, `stock`, `image_url`, `images` JSON, `category_id` FK, `brand_id` FK, `skin_types` JSON, `concerns` JSON, `key_ingredients` JSON, `free_from` JSON, `usage_time`, `step`, `variants` JSON, `sold_count`, `rating_avg`, `rating_count`, `is_active`, timestamps |
+| `products` | `id`, `name`, `slug` UNIQUE, `description`, `price`, `sale_price`, `stock`, `category_id` FK, `brand_id` FK, `skin_types` JSON, `concerns` JSON, `key_ingredients` JSON, `free_from` JSON, `variants` JSON, `sold_count`, `rating_avg`, `rating_count`, `is_active`, timestamps |
+| `product_images` | `id`, `product_id` FK CASCADE, `public_id` UNIQUE, `secure_url`, `alt_text`, `width`, `height`, `format`, `position`, `is_main`, timestamps |
 | `orders` | `id`, `user_id` FK, `order_code` UNIQUE, `status`, `subtotal`, `shipping_fee`, `discount`, `total`, `payment_method`, `payment_status`, `paid_at`, `transaction_id`, `shipping_name`, `shipping_phone`, `shipping_address`, `tracking_code`, `carrier`, `note`, timestamps |
 | `order_items` | `id`, `order_id` FK CASCADE, `product_id` FK, `product_name`, `product_price`, `product_image`, `variant_info` JSON, `qty`, `subtotal` |
 | `order_status_history` | `id`, `order_id` FK CASCADE, `status`, `note`, `created_by` FK, `created_at` |

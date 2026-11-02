@@ -16,6 +16,7 @@ interface WishlistItem {
     price: number;
     sale_price: number | null;
     image_url: string | null;
+    image_urls?: { card: string; detail: string; thumb: string } | null;
     brand: { name: string } | null;
   };
 }
@@ -49,9 +50,9 @@ export default function WishlistPage() {
       title: 'Sản phẩm',
       render: (_: unknown, record: WishlistItem) => (
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          {record.product.image_url && (
+          {(record.product.image_urls?.thumb || record.product.image_url) && (
             <img
-              src={record.product.image_url}
+              src={record.product.image_urls?.thumb ?? record.product.image_url ?? ''}
               alt={record.product.name}
               style={{ width: 60, height: 60, objectFit: 'cover', borderRadius: 4 }}
             />

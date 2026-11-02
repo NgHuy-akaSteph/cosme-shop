@@ -12,15 +12,27 @@ import {
   InputNumber,
   Select,
   App,
+  Tooltip,
+  Image,
 } from 'antd';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
+import {
+  PlusOutlined,
+  EditOutlined,
+  DeleteOutlined,
+  PictureOutlined,
+} from '@ant-design/icons';
 import api from '../../api/axios';
 import type { ApiError } from '../../types/api';
 import { getErrorMessage } from '../../types/api';
 import { CONCERNS, SKIN_TYPES } from '../../utils/constants';
 import { colors } from '../../theme';
+import ProductImageManager from '../../components/admin/ProductImageManager';
+import ProductImageGalleryModal from '../../components/admin/ProductImageGalleryModal';
+import ProductStagedUploader from '../../components/admin/ProductStagedUploader';
+import type { PendingUpload } from '../../components/admin/ProductStagedUploader';
+import type { ProductImage } from '../../types/product';
 
 const { Title, Text } = Typography;
 
@@ -32,12 +44,16 @@ interface AdminProduct {
   stock: number;
   is_active: boolean;
   description?: string | null;
+  category_id: number;
+  brand_id: number;
   category: { name: string } | null;
   brand: { name: string } | null;
   skin_types?: string[] | null;
   concerns?: string[] | null;
   key_ingredients?: string[] | null;
   free_from?: string[] | null;
+  image_url?: string | null;
+  images?: ProductImage[] | null;
 }
 
 interface Category {
@@ -75,6 +91,15 @@ export default function AdminProducts() {
   const [editingProduct, setEditingProduct] = useState<AdminProduct | null>(null);
   const [form] = Form.useForm<ProductFormValues>();
 
+  // Modal quan ly anh rieng
+  const [galleryProduct, setGalleryProduct] = useState<AdminProduct | null>(null);
+
+  // File anh da chon nhung chua upload (chi dung khi TAO san pham moi)
+  const [stagedFiles, setStagedFiles] = useState<File[]>([]);
+
+  // Upload dang cho: san pham da tao xong, can day file anh len
+  const [pendingUpload, setPendingUpload] = useState<PendingUpload | null>(null);
+
   const { data: products, isLoading } = useQuery({
     queryKey: ['admin', 'products'],
     queryFn: async () => {
@@ -104,10 +129,12 @@ export default function AdminProducts() {
       const res = await api.post('/api/products', values);
       return res.data;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'products'] });
       message.success('Tạo sản phẩm thành công!');
       handleCloseModal();
+      // Upload file anh da staged - xem ProductStagedUploader
+      setPendingUpload({ productId: data?.data?.id as number, files: stagedFiles });
     },
     onError: (error: ApiError) => {
       message.error(getErrorMessage(error, 'Có lỗi xảy ra'));
@@ -147,6 +174,8 @@ export default function AdminProducts() {
         price: product.price,
         sale_price: product.sale_price,
         stock: product.stock,
+        category_id: product.category_id,
+        brand_id: product.brand_id,
         description: product.description ?? undefined,
         skin_types: product.skin_types ?? [],
         concerns: product.concerns ?? [],
@@ -157,6 +186,8 @@ export default function AdminProducts() {
       setEditingProduct(null);
       form.resetFields();
     }
+    // Reset file da staged
+    setStagedFiles([]);
     setIsModalOpen(true);
   };
 
@@ -164,6 +195,7 @@ export default function AdminProducts() {
     setIsModalOpen(false);
     setEditingProduct(null);
     form.resetFields();
+    setStagedFiles([]);
   };
 
   const handleSubmit = (values: ProductFormValues) => {
@@ -176,6 +208,44 @@ export default function AdminProducts() {
 
   const columns = [
     { title: 'ID', dataIndex: 'id', width: 60 },
+    {
+      title: 'Ảnh',
+      dataIndex: 'image_url',
+      width: 90,
+      render: (_: unknown, record: AdminProduct) => {
+        const thumb =
+          record.images?.find((img) => img.is_main)?.image_urls?.thumb ??
+          record.images?.[0]?.image_urls?.thumb ??
+          record.image_url;
+        if (!thumb) {
+          return (
+            <div
+              style={{
+                width: 56,
+                height: 56,
+                borderRadius: 8,
+                background: colors.galleryPlaceholder,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <PictureOutlined style={{ color: colors.placeholderIcon }} />
+            </div>
+          );
+        }
+        return (
+          <Image
+            src={thumb}
+            alt={record.name}
+            width={56}
+            height={56}
+            style={{ objectFit: 'cover', borderRadius: 8 }}
+            preview={false}
+          />
+        );
+      },
+    },
     { title: 'Tên sản phẩm', dataIndex: 'name' },
     { title: 'Danh mục', dataIndex: ['category', 'name'] },
     { title: 'Thương hiệu', dataIndex: ['brand', 'name'] },
@@ -207,6 +277,13 @@ export default function AdminProducts() {
       title: '',
       render: (_: unknown, record: AdminProduct) => (
         <Space>
+          <Tooltip title="Quản lý ảnh">
+            <Button
+              type="link"
+              icon={<PictureOutlined />}
+              onClick={() => setGalleryProduct(record)}
+            />
+          </Tooltip>
           <Button
             type="link"
             icon={<EditOutlined />}
@@ -248,6 +325,7 @@ export default function AdminProducts() {
         onCancel={handleCloseModal}
         footer={null}
         width={640}
+        destroyOnClose
       >
         <Form form={form} layout="vertical" onFinish={handleSubmit}>
           <Form.Item name="name" label="Tên sản phẩm" rules={[{ required: true }]}>
@@ -319,6 +397,20 @@ export default function AdminProducts() {
             <Input.TextArea rows={3} />
           </Form.Item>
 
+          {/* Phan quan ly anh san pham */}
+          <Form.Item label="Ảnh sản phẩm">
+            <ProductImageManager
+              productId={editingProduct?.id}
+              stagedFiles={stagedFiles}
+              onStagedFilesChange={setStagedFiles}
+              disabled={
+                createMutation.isPending ||
+                updateMutation.isPending ||
+                deleteMutation.isPending
+              }
+            />
+          </Form.Item>
+
           <Form.Item>
             <Space>
               <Button
@@ -333,6 +425,20 @@ export default function AdminProducts() {
           </Form.Item>
         </Form>
       </Modal>
+
+      {/* Modal quan ly anh rieng */}
+      <ProductImageGalleryModal
+        open={Boolean(galleryProduct)}
+        productId={galleryProduct?.id ?? null}
+        productName={galleryProduct?.name}
+        onClose={() => setGalleryProduct(null)}
+      />
+
+      {/* Upload file anh da staged sau khi tao san pham */}
+      <ProductStagedUploader
+        pending={pendingUpload}
+        onDone={() => setPendingUpload(null)}
+      />
     </div>
   );
 }

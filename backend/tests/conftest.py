@@ -64,6 +64,55 @@ def _qualified_tables(schema: str) -> list[str]:
     )
 
 
+async def _drop_outdated_tables(conn, metadata: MetaData, schema: str) -> list[str]:
+    """
+    Drop cac bang co schema khong khop voi model hien tai.
+
+    `metadata.create_all` chi tao bang con THIEU - bang da ton tai voi cot
+    cu (vd truoc khi migration bo cot `url` cua `product_images`) se duoc
+    giu nguyen va moi len khong khop model.
+
+    So sanh danh sach cot thuc te voi model; bang khong khop -> drop de
+    `create_all` tao lai dung schema moi.
+
+    Args:
+        conn: AsyncConnection
+        metadata: Metadata cua schema test
+        schema: Ten schema
+
+    Returns:
+        Danh sach ten bang da drop.
+    """
+    result = await conn.execute(
+        text(
+            """
+            SELECT table_name, column_name
+            FROM information_schema.columns
+            WHERE table_schema = :schema
+            """
+        ),
+        {"schema": schema},
+    )
+    existing: dict[str, set[str]] = {}
+    for table_name, column_name in result:
+        existing.setdefault(table_name, set()).add(column_name)
+
+    dropped: list[str] = []
+    for table in metadata.sorted_tables:
+        actual = existing.get(table.name)
+        if actual is None:
+            continue  # Chua ton tai -> create_all se tao moi
+
+        expected = {col.name for col in table.columns}
+        if actual != expected:
+            await conn.execute(
+                text(f'DROP TABLE IF EXISTS "{schema}"."{table.name}" CASCADE')
+            )
+            dropped.append(table.name)
+
+    return dropped
+
+
 @pytest_asyncio.fixture
 async def engine():
     if not TEST_DATABASE_URL:
@@ -125,6 +174,11 @@ async def db_session(engine, _prepare_schema):
     if TEST_DATABASE_SCHEMA:
         metadata = _build_schema_metadata(TEST_DATABASE_SCHEMA)
         async with engine.begin() as conn:
+            # Drop bang co schema cu (migration da doi model) -> create_all
+            # tao lai dung cau truc moi.
+            dropped = await _drop_outdated_tables(conn, metadata, TEST_DATABASE_SCHEMA)
+            if dropped:
+                print(f"[test] Drop bang outdated trong schema test: {dropped}")
             await conn.run_sync(metadata.create_all)
         truncate_target = ", ".join(_qualified_tables(TEST_DATABASE_SCHEMA))
     else:

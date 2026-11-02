@@ -36,7 +36,10 @@ class Settings(BaseSettings):
     CLOUDINARY_API_KEY: str = ""
     CLOUDINARY_API_SECRET: str = ""
     CLOUDINARY_UPLOAD_PRESET: str = "cosme_shop_unsigned"
-    CLOUDINARY_FOLDER: str = "cosme-shop/products"
+    # Folder goc tren Cloudinary. Folder con (products/{id}) duoc build trong
+    # `app.core.cloudinary.build_product_folder` - tranh de 2 noi cung dinh
+    # nghia folder va sinh ra path lap (vi du "cosme-shop/products/products/1").
+    CLOUDINARY_FOLDER: str = "cosme-shop"
     CLOUDINARY_MAX_FILE_SIZE: int = 5 * 1024 * 1024  # 5MB
     
     class Config:

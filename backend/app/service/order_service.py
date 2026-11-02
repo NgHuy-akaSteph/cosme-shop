@@ -28,7 +28,7 @@ def _get_main_image_url(product: Product) -> str | None:
     if not sorted_images:
         return None
     first = sorted_images[0]
-    return first.secure_url or first.url
+    return first.secure_url
 
 
 def generate_order_code() -> str:

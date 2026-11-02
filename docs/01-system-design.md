@@ -121,6 +121,7 @@ erDiagram
     brands ||--o{ products : "thuong hieu"
     products ||--o{ order_items : "snapshot"
     products ||--o{ wishlists : "yeu thich"
+    products ||--o{ product_images : "co anh"
 
     users {
         int id PK
@@ -160,21 +161,32 @@ erDiagram
         numeric price
         numeric sale_price
         int stock
-        string image_url
-        json images
         int category_id FK
         int brand_id FK
         json skin_types
         json concerns
         json key_ingredients
         json free_from
-        string usage_time
-        int step
         json variants
         int sold_count
         numeric rating_avg
         int rating_count
         bool is_active
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    product_images {
+        int id PK
+        int product_id FK
+        string public_id UK
+        string secure_url
+        string alt_text
+        int width
+        int height
+        string format
+        int position
+        bool is_main
         timestamptz created_at
         timestamptz updated_at
     }
@@ -320,6 +332,12 @@ erDiagram
 | Wishlist | GET | `/api/wishlist` | User |
 | Wishlist | POST | `/api/wishlist/{product_id}` | User |
 | Wishlist | DELETE | `/api/wishlist/{product_id}` | User |
+| Upload | POST | `/api/upload/product-image/{product_id}` | Admin |
+| Upload | GET | `/api/upload/product-image/product/{product_id}` | Admin |
+| Upload | PATCH | `/api/upload/product-image/{image_id}` | Admin |
+| Upload | PATCH | `/api/upload/product-image/{image_id}/set-main` | Admin |
+| Upload | PATCH | `/api/upload/product-image/{product_id}/reorder` | Admin |
+| Upload | DELETE | `/api/upload/product-image/{image_id}` | Admin |
 
 ### 4.3 AI Service endpoints (nội bộ)
 
@@ -429,9 +447,69 @@ sequenceDiagram
 
 ### 6.5 Upload ảnh
 
-- Chỉ admin upload được.
-- Giới hạn 5MB, chỉ chấp nhận jpg/png/webp.
-- Lưu local `uploads/` hoặc Cloudinary (tuỳ chọn).
+- Chỉ admin upload được (`Depends(get_current_admin)`).
+- Giới hạn 5MB (`CLOUDINARY_MAX_FILE_SIZE`), chỉ chấp nhận jpg/png/webp.
+  Danh sách format phải khớp với `ALLOWED_UPLOAD_FORMATS` trong `app/core/cloudinary.py` —
+  nếu API cho phép format mà Cloudinary chặn thì user chỉ thấy lỗi 502 thay vì thông báo rõ ràng.
+- Validate 2 lớp: content-type của client + magic bytes của file thực (chống file giả mạo).
+- Lưu trên **Cloudinary** (signed upload qua backend, không expose API secret ra client).
+- Mỗi sản phẩm có nhiều ảnh, lưu trong bảng `product_images` (xem [04-database.md §4.4b](04-database.md)).
+- Upload là blocking I/O → chạy trong `run_in_threadpool` để không chặn event loop.
+
+**Cấu trúc folder trên Cloudinary**
+
+`CLOUDINARY_FOLDER` là folder gốc (mặc định `cosme-shop`). Mỗi sản phẩm nằm trong folder con
+`{CLOUDINARY_FOLDER}/products/{product_id}`, do `build_product_folder()` trong
+`app/core/cloudinary.py` sinh ra. `upload_image()` **bắt buộc** nhận `folder` tường minh —
+không có default — để tránh hai nơi cùng định nghĩa folder và sinh path lặp
+(ví dụ `cosme-shop/products/products/1`).
+
+**Ảnh chính luôn ở đầu gallery**
+
+`product_images.position` quyết định thứ tự hiển thị. Khi đổi ảnh chính
+(`set_main_image`, `PATCH is_main=true`, hoặc upload ảnh mới với `is_main=true`),
+service gọi chung một helper `_promote_to_main()` để đặt ảnh chính ở `position = 0`
+và đánh lại `position` của các ảnh còn lại thành `1..N` liên tục. Việc bỏ cờ
+`is_main` được thực hiện ở câu lệnh riêng trước khi đặt ảnh mới, tránh vi phạm
+unique index `uq_product_images_one_main`. Xung đột do race condition được bắt
+lại thành HTTP 409 thay vì 500.
+
+Ngoại lệ: endpoint `reorder` cho admin sắp xếp thủ công theo thứ tự tuỳ ý
+(bao gồm việc di chuyển ảnh chính), nên thứ tự sau reorder không bắt buộc có
+ảnh chính ở đầu.
+
+**Chiến lược ảnh: 1 ảnh gốc + Cloudinary transform lúc hiển thị**
+
+Admin upload **một** file gốc duy nhất (khuyến nghị ≥ 1600×1600 px, vuông hoặc gần vuông).
+Cloudinary tự resize/crop/convert (`q_auto`, `f_auto`) khi render:
+
+| Nơi hiển thị | Kích thước | Transformation |
+|---|---|---|
+| Card sản phẩm | 600×600 | `w_600,h_600,c_fill` |
+| Trang chi tiết | 1200×840 | `w_1200,h_840,c_limit` |
+| Giỏ / wishlist | 160×160 | `w_160,h_160,c_fill` |
+| Thumb bảng admin | 200×200 | `w_200,h_200,c_fill` |
+
+Biến thể được sinh từ `public_id` lúc runtime (không lưu nhiều URL trong DB → không stale).
+Backend trả kèm `image_urls: { card, detail, thumb }` cho mỗi sản phẩm.
+
+**API endpoints**
+
+| Method | Path | Mô tả |
+|---|---|---|
+| `POST` | `/api/upload/product-image/{product_id}` | Upload 1 ảnh (multipart: `file`, `alt_text`, `is_main`) |
+| `GET` | `/api/upload/product-image/product/{product_id}` | Danh sách ảnh theo thứ tự `position` |
+| `PATCH` | `/api/upload/product-image/{image_id}/set-main` | Đặt ảnh chính (unset các ảnh khác) |
+| `PATCH` | `/api/upload/product-image/{image_id}` | Cập nhật metadata (`alt_text`, `position`, `is_main`) |
+| `PATCH` | `/api/upload/product-image/{product_id}/reorder` | Đổi thứ tự: body `{"image_ids": [3,1,2]}` |
+| `DELETE` | `/api/upload/product-image/{image_id}` | Xoá ảnh khỏi gallery |
+
+**Quy tắc xoá an toàn lịch sử đơn hàng**
+
+`order_items.product_image` lưu snapshot URL (không FK). Trước khi xoá asset trên Cloudinary,
+kiểm tra ảnh đã được snapshot vào đơn hàng chưa:
+- **Chưa bán** → xoá asset Cloudinary + xoá row DB.
+- **Đã bán** → **giữ asset trên Cloudinary**, chỉ gỡ row khỏi gallery (lịch sử đơn hàng không bị 404).
 
 ## 7. Triển khai
 

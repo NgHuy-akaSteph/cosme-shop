@@ -168,17 +168,13 @@ Mục đích: sản phẩm — bảng phức tạp nhất, có nhiều JSON colu
 | `price` | `NUMERIC(12,0)` | No | -- | CHECK `> 0` | VNĐ |
 | `sale_price` | `NUMERIC(12,0)` | Yes | NULL | CHECK `>= 0` | Giá khuyến mãi (optional) |
 | `stock` | `INTEGER` | No | `0` | CHECK `>= 0` | |
-| `image_url` | `VARCHAR(500)` | Yes | NULL | | Ảnh chính |
-| `images` | `JSONB` | Yes | NULL | | `string[]` — gallery |
 | `category_id` | `INTEGER` | No | -- | FK → `categories.id` | |
 | `brand_id` | `INTEGER` | No | -- | FK → `brands.id` | |
 | `skin_types` | `JSONB` | Yes | NULL | | `string[]` |
 | `concerns` | `JSONB` | Yes | NULL | | `string[]` |
 | `key_ingredients` | `JSONB` | Yes | NULL | | `string[]` |
 | `free_from` | `JSONB` | Yes | NULL | | `string[]` |
-| `usage_time` | `VARCHAR(20)` | Yes | NULL | | `morning` \| `night` \| `both` |
-| `step` | `INTEGER` | Yes | NULL | CHECK `1..5` | Bước trong routine |
-| `variants` | `JSONB` | Yes | NULL | | `Variant[]` — xem §5.6 |
+| `variants` | `JSONB` | Yes | NULL | | `Variant[]` — xem §5.5 |
 | `sold_count` | `INTEGER` | No | `0` | | Best-seller ranking |
 | `rating_avg` | `NUMERIC(3,2)` | No | `0` | | Đánh giá trung bình |
 | `rating_count` | `INTEGER` | No | `0` | | Số lượt đánh giá |
@@ -186,9 +182,54 @@ Mục đích: sản phẩm — bảng phức tạp nhất, có nhiều JSON colu
 | `created_at` | `TIMESTAMPTZ` | No | `now()` | | |
 | `updated_at` | `TIMESTAMPTZ` | No | `now()` ON UPDATE | | |
 
-Quan hệ ngược: 1 product → nhiều `order_items` (qua snapshot), `wishlists`.
+**Lưu ý:** bảng `products` **không** có cột `image_url` hay JSONB `images`.
+Ảnh sản phẩm nằm ở bảng riêng `product_images` (§4.4b).
+
+Quan hệ ngược: 1 product → nhiều `order_items` (qua snapshot), `wishlists`, `product_images`.
 
 Lưu ý: Khi order, KHÔNG tham chiếu động từ `products` — phải snapshot `name`, `price`, `image`, `variant_info` vào `order_items`.
+
+### 4.4b `product_images`
+
+Mục đích: lưu ảnh sản phẩm trên Cloudinary. Mỗi sản phẩm có nhiều ảnh, 1 ảnh được đánh dấu là ảnh chính.
+
+| Cột | Kiểu SQL | Null | Default | Ràng buộc | Ghi chú |
+|---|---|---|---|---|---|
+| `id` | `SERIAL` | No | auto | PK | |
+| `product_id` | `INTEGER` | No | -- | FK → `products.id` ON DELETE CASCADE | |
+| `public_id` | `VARCHAR(255)` | No | -- | UNIQUE | Khoá quản lý asset trên Cloudinary |
+| `secure_url` | `VARCHAR(500)` | No | -- | | URL https canonical |
+| `alt_text` | `VARCHAR(255)` | Yes | NULL | | Mô tả ảnh (SEO) |
+| `width` | `INTEGER` | Yes | NULL | | Metadata từ Cloudinary |
+| `height` | `INTEGER` | Yes | NULL | | Metadata từ Cloudinary |
+| `format` | `VARCHAR(20)` | Yes | NULL | | `jpg` \| `png` \| `webp` |
+| `position` | `INTEGER` | No | `0` | | Thứ tự hiển thị trong gallery |
+| `is_main` | `BOOLEAN` | No | `false` | | Ảnh chính |
+| `created_at` | `TIMESTAMPTZ` | No | `now()` | | |
+| `updated_at` | `TIMESTAMPTZ` | No | `now()` ON UPDATE | | |
+
+**Index**
+
+| Index | Định nghĩa | Mục đích |
+|---|---|---|
+| `product_images_pkey` | PK (`id`) | — |
+| `product_images_public_id_key` | UNIQUE (`public_id`) | Không trùng asset |
+| `uq_product_images_one_main` | UNIQUE (`product_id`) WHERE `is_main` | Enforce **chỉ 1 ảnh chính** trong DB, chặn race condition khi 2 request upload song song |
+| `ix_product_images_product_id` | (`product_id`) | Truy vấn ảnh theo sản phẩm |
+| `ix_product_images_product_position` | (`product_id`, `position`) | Gallery `ORDER BY position` |
+
+**Ghi chú**
+
+- Không có cột `version`: upload dùng `overwrite=False` + `unique_filename=True` → mỗi lần upload là
+  asset mới với `public_id` riêng, không có vấn đề cache stale.
+- Không có cột `url` (http): URL chỉ tồn tại dạng `secure_url`. Các biến thể kích cỡ khác được
+  sinh từ `public_id` lúc render (xem §6.5 của [01-system-design.md](01-system-design.md)).
+- Ảnh đã bán **không** được xoá asset trên Cloudinary (chỉ gỡ row khỏi gallery) để lịch sử
+  đơn hàng không bị 404.
+- `position` được đánh lại liên tục `0..N-1` mỗi khi đổi ảnh chính: ảnh chính luôn ở `position = 0`,
+  các ảnh còn lại là `1..N`. Service dùng chung helper `_promote_to_main()` cho cả
+  `set_main_image`, `PATCH is_main=true` và upload ảnh mới với `is_main=true` để giữ invariant này.
+  Endpoint `reorder` là ngoại lệ — admin được sắp xếp thủ công theo thứ tự tuỳ ý.
 
 ### 4.5 `orders`
 
@@ -231,7 +272,7 @@ Mục đích: dòng chi tiết của đơn hàng. Lưu snapshot tại thời đi
 | `product_name` | `VARCHAR(255)` | No | -- | | Snapshot |
 | `product_price` | `NUMERIC(12,0)` | No | -- | | Snapshot |
 | `product_image` | `VARCHAR(500)` | Yes | NULL | | Snapshot |
-| `variant_info` | `JSONB` | Yes | NULL | | Snapshot — xem §5.7 |
+| `variant_info` | `JSONB` | Yes | NULL | | Snapshot — xem §5.6 |
 | `qty` | `INTEGER` | No | `1` | CHECK `> 0` | |
 | `subtotal` | `NUMERIC(12,0)` | No | `0` | | `product_price * qty` |
 
@@ -298,18 +339,7 @@ ON orders (transaction_id) WHERE transaction_id IS NOT NULL;
 
 ## 5. Cấu trúc JSON columns
 
-### 5.1 `products.images`
-
-```json
-[
-  "https://cdn.example.com/products/serum-vc-1.jpg",
-  "https://cdn.example.com/products/serum-vc-2.jpg"
-]
-```
-
-`null` nếu không có gallery (chỉ dùng `image_url`).
-
-### 5.2 `products.skin_types`
+### 5.1 `products.skin_types`
 
 ```json
 ["oily", "combination"]
@@ -317,7 +347,7 @@ ON orders (transaction_id) WHERE transaction_id IS NOT NULL;
 
 Enum giá trị: `oily | dry | combination | sensitive | normal`.
 
-### 5.3 `products.concerns`
+### 5.2 `products.concerns`
 
 ```json
 ["acne", "dark_spots"]
@@ -325,13 +355,13 @@ Enum giá trị: `oily | dry | combination | sensitive | normal`.
 
 Enum gợi ý: `acne | dark_spots | wrinkles | dullness | dehydration | redness | pores | aging`.
 
-### 5.4 `products.key_ingredients`
+### 5.3 `products.key_ingredients`
 
 ```json
 ["vitamin_c", "niacinamide", "hyaluronic_acid"]
 ```
 
-### 5.5 `products.free_from`
+### 5.4 `products.free_from`
 
 ```json
 ["alcohol", "fragrance", "parabens"]
@@ -339,7 +369,7 @@ Enum gợi ý: `acne | dark_spots | wrinkles | dullness | dehydration | redness 
 
 Dùng để filter dị ứng trong Routine Builder: nếu user khai `allergies: ["alcohol"]`, loại sản phẩm có `"alcohol"` trong `free_from`.
 
-### 5.6 `products.variants`
+### 5.5 `products.variants`
 
 ```json
 [
@@ -364,9 +394,9 @@ Quy tắc:
 
 - `variants = null` — sản phẩm không có biến thể, dùng `price`/`stock` chính.
 - `variants = [...]` — mỗi variant có giá/stock riêng. Khi order/checkout phải chọn 1 variant cụ thể.
-- Khi order, snapshot `variant_info = {"id": "v1", "name": "Do Ruby"}` vào `order_items` (xem §5.7).
+- Khi order, snapshot `variant_info = {"id": "v1", "name": "Do Ruby"}` vào `order_items` (xem §5.6).
 
-### 5.7 `order_items.variant_info`
+### 5.6 `order_items.variant_info`
 
 ```json
 {

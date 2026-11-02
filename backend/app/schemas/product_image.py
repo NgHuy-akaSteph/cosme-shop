@@ -9,7 +9,6 @@ class ProductImageBase(BaseModel):
     """Base schema cho product image."""
 
     public_id: str
-    url: str
     secure_url: str
     alt_text: str | None = None
     width: int | None = None
@@ -31,6 +30,12 @@ class ProductImageUpdate(BaseModel):
     is_main: bool | None = None
 
 
+class ProductImageReorder(BaseModel):
+    """Schema sap xep lai thu tu anh cua 1 san pham."""
+
+    image_ids: list[int]
+
+
 class ProductImageRead(ProductImageBase):
     """Schema response product image."""
 
@@ -40,3 +45,6 @@ class ProductImageRead(ProductImageBase):
     product_id: int
     created_at: datetime
     updated_at: datetime
+    # Bien the URL theo kich co hien thi (sinh tu public_id qua Cloudinary).
+    # Khong co truong nay trong DB - duoc gan o API layer.
+    image_urls: dict[str, str] | None = None

@@ -16,11 +16,15 @@ router = APIRouter(prefix="/api/wishlist", tags=["wishlist"])
 
 def _product_to_dict(p) -> dict[str, Any]:
     """Convert product to dict for wishlist."""
+    from app.core.cloudinary import build_image_urls
+
     main_image_url: str | None = None
+    main_image_urls: dict[str, str] | None = None
     if p.images_rel:
         sorted_images = sorted(p.images_rel, key=lambda img: (not img.is_main, img.position))
         if sorted_images:
-            main_image_url = sorted_images[0].secure_url or sorted_images[0].url
+            main_image_url = sorted_images[0].secure_url
+            main_image_urls = build_image_urls(sorted_images[0].public_id)
 
     return {
         "id": p.id,
@@ -31,6 +35,7 @@ def _product_to_dict(p) -> dict[str, Any]:
         "sale_price": str(p.sale_price) if p.sale_price else None,
         "stock": p.stock,
         "image_url": main_image_url,
+        "image_urls": main_image_urls,
     }
 
 

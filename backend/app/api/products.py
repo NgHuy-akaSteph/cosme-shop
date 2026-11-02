@@ -19,12 +19,16 @@ router = APIRouter(prefix="/api/products", tags=["products"])
 
 def _product_to_dict(p) -> dict[str, Any]:
     """Convert product model to dict."""
+    from app.core.cloudinary import build_image_urls
+
     # Lay URL anh chinh (anh dau tien hoac anh is_main=true)
     main_image_url: str | None = None
+    main_image: dict[str, Any] | None = None
     if p.images_rel:
         sorted_images = sorted(p.images_rel, key=lambda img: (not img.is_main, img.position))
         if sorted_images:
-            main_image_url = sorted_images[0].secure_url or sorted_images[0].url
+            main_image = sorted_images[0]
+            main_image_url = main_image.secure_url
 
     def _iso(v):
         """Convert datetime to ISO string; pass through if already str/None."""
@@ -44,6 +48,10 @@ def _product_to_dict(p) -> dict[str, Any]:
         "stock": p.stock,
         # Synthesized for client convenience (frontend expects image_url field)
         "image_url": main_image_url,
+        # URL bien the theo kich co hien thi (sinh tu public_id qua Cloudinary)
+        "image_urls": (
+            build_image_urls(main_image.public_id) if main_image else None
+        ),
         "category_id": p.category_id,
         "brand_id": p.brand_id,
         "skin_types": p.skin_types,
@@ -73,7 +81,6 @@ def _product_to_dict(p) -> dict[str, Any]:
                 "id": img.id,
                 "product_id": img.product_id,
                 "public_id": img.public_id,
-                "url": img.url,
                 "secure_url": img.secure_url,
                 "alt_text": img.alt_text,
                 "width": img.width,
@@ -81,6 +88,7 @@ def _product_to_dict(p) -> dict[str, Any]:
                 "format": img.format,
                 "position": img.position,
                 "is_main": img.is_main,
+                "image_urls": build_image_urls(img.public_id),
                 "created_at": _iso(img.created_at),
                 "updated_at": _iso(img.updated_at),
             }
