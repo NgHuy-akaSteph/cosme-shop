@@ -15,9 +15,9 @@ cosme-shop/
 
 ## 1. Yêu cầu trước khi bắt đầu (Windows)
 
-| Công cụ | Phiên bản | Cách cài |
+| Công cụ | Phiên chuẩn | Cách cài |
 |---|---|---|
-| Python | 3.12+ | https://www.python.org/downloads/windows/ — **nhớ tick "Add python.exe to PATH"** |
+| Python | 3.13 (đã pin trong `.python-version`) | https://www.python.org/downloads/windows/ — **nhớ tick "Add python.exe to PATH"** |
 | Node.js | 20.19+ hoặc 22.12+ (LTS) | https://nodejs.org/ — bản `.msi` mặc định đã cài kèm `npm` |
 | Git | mới nhất | https://git-scm.com/download/win |
 | PostgreSQL | Neon cloud (khuyến nghị) hoặc local | https://neon.tech/ |
@@ -252,6 +252,14 @@ npm run lint
 | Frontend không gọi được API | Kiểm tra `frontend\.env` có `VITE_API_URL=http://localhost:8000` và **restart** `npm run dev` |
 | Port 8000/5173 đã bị chiếm | `netstat -ano | findstr :8000` rồi `taskkill /PID <pid> /F`, hoặc đổi `BACKEND_PORT`/`FRONTEND_PORT` |
 | `uvloop` lỗi khi cài trên Windows | `uvloop` chỉ hỗ trợ Linux/macOS — bỏ qua, Windows dùng `asyncio` mặc định |
+
+### Lỗi build khi deploy (Koyeb)
+
+| Triệu chứng | Cách xử lý |
+|---|---|
+| Build fail với `Failed to build 'uvloop==…'` / `Building uvloop==…` | Image build dùng Python quá mới (vd 3.15) không có sẵn wheel `cp3xx` → `uv` phải compile từ source rồi fail vì thiếu tool build (`/usr/bin/file`) |
+| `Using CPython 3.15.0` trong build log | Sửa file `.python-version` ở thư mục gốc service (repo root hoặc `backend/`) về `3.13.0` — Koyeb yêu cầu đủ 3 thành phần `major.minor.patch` và chỉ hỗ trợ `3.9`–`3.13` |
+| Build vẫn dùng Python cũ sau khi sửa | Xoá build cache / clone service mới, hoặc deploy lại từ commit mới có file `.python-version` |
 
 ---
 
