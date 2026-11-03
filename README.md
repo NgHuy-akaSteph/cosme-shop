@@ -261,6 +261,14 @@ npm run lint
 | `Using CPython 3.15.0` trong build log | Sửa file `.python-version` ở thư mục gốc service (repo root hoặc `backend/`) về `3.13.0` — Koyeb yêu cầu đủ 3 thành phần `major.minor.patch` và chỉ hỗ trợ `3.9`–`3.13` |
 | Build vẫn dùng Python cũ sau khi sửa | Xoá build cache / clone service mới, hoặc deploy lại từ commit mới có file `.python-version` |
 
+### Lỗi runtime khi deploy (Koyeb) — build OK nhưng container crash
+
+| Triệu chứng | Cách xử lý |
+|---|---|
+| `RuntimeError: To use the fastapi command, please install "fastapi[standard]"` trong log runtime (app restart liên tục) | Koyeb tự chạy lệnh start bằng FastAPI CLI (`/app/.venv/bin/fastapi`) nhưng `fastapi-cli` chưa được cài. Đã fix: thêm `fastapi-cli==0.0.32` vào `backend/requirements.txt` **và** file `backend/Procfile` (lệnh start tường minh bằng `uvicorn`) |
+| Muốn ép lệnh start riêng | Service Settings → Builder → **Run command**: `uvicorn app.main:app --host 0.0.0.0 --port $PORT --forwarded-allow-ips=*` (ghi đè `Procfile`) |
+| App start nhưng không nhận traffic | Kiểm tra Exposed port đang là `8000:http` và route `/:8000`; Koyeb tự set `PORT` = port thấp nhất được expose |
+
 ---
 
 ## 10. Linux/macOS (tham khảo)

@@ -1,0 +1,4 @@
+# Koyeb/Heroku-style process definition.
+# Used when no explicit "Run command" is set in the Koyeb service settings.
+# NOTE: if the Koyeb dashboard defines a Run command, it takes precedence over this file.
+web: uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --forwarded-allow-ips=*
