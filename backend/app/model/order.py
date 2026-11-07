@@ -1,7 +1,7 @@
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from sqlalchemy import ForeignKey, Integer, Numeric, String, Text
+from sqlalchemy import ForeignKey, Index, Integer, Numeric, String, Text, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, IdMixin, TimestampMixin
@@ -53,4 +53,18 @@ class Order(Base, IdMixin, TimestampMixin):
     )
     status_history: Mapped[list["OrderStatusHistory"]] = relationship(
         "OrderStatusHistory", back_populates="order", cascade="all, delete-orphan"
+    )
+
+    # Partial unique index: 1 giao dich (transaction_id) chi gan cho toi da 1 don.
+    # CHECK o tang application co race condition (webhook + reconcile chay song
+    # song deu doc "khong thay duplicate" truoc khi ghi) => unique index DB la
+    # chot chong cuoi cung. Khai bao o model de `create_all` (test) cung tao
+    # index, khong chi migration.
+    __table_args__ = (
+        Index(
+            "uq_orders_transaction_id",
+            "transaction_id",
+            unique=True,
+            postgresql_where=text("transaction_id IS NOT NULL"),
+        ),
     )

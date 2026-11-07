@@ -35,7 +35,7 @@ class Settings(BaseSettings):
     # VietinBank (ca nhan / ho kinh doanh) BAT BUOC noi dung chuyen khoan chua
     # chuoi "SEVQR" - thieu chuoi nay SePay KHONG day giao dich ve webhook.
     # Bo trong neu ngan hang khong yeu cau (VD Vietcombank, ACB, MBBank).
-    SEPAY_QR_CONTENT_PREFIX: str = ""
+    SEPAY_QR_CONTENT_PREFIX: str = "SEVQR"
     # Ma thanh toan: tien to + do dai hau to (chu so) -> phai KHOP voi mau ma
     # khai bao o SePay dashboard (Cong ty -> Cau hinh chung -> Cau truc ma thanh
     # toan). Sai => SePay khong trich duoc `code` => KHONG gui webhook => mat tien.

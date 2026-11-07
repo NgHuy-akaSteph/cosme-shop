@@ -277,6 +277,8 @@ Mục đích: dòng chi tiết của đơn hàng. Lưu snapshot tại thời đi
 | `subtotal` | `NUMERIC(12,0)` | No | `0` | | `product_price * qty` |
 
 Lưu ý: Khi user cancel đơn (status còn `pending`/`confirmed`), cần hoàn stock cho `products` dựa trên `qty` và `variant_info` ở bảng này.
+- Nếu `variant_info` có `id` → hoàn vào `variants[i].stock`, rồi tính lại `products.stock` = tổng stock variants.
+- Nếu không có `variant_info` → hoàn thẳng vào `products.stock`.
 
 ### 4.7 `order_status_history`
 
@@ -341,6 +343,37 @@ Giá trị lưu = `referenceCode` (mã tham chiếu ngân hàng) chứ không ph
 webhook gửi `id` kiểu int (`44843`) còn API v2 gửi `id` kiểu UUID (`37dcdb04-...`) cho **cùng 1 giao dịch**.
 Dùng `id` sẽ khiến 2 nguồn ghi 2 giá trị khác nhau ⇒ index này không chặn được giao dịch trùng.
 
+### 4.11 Bảo đảm constraint chống trùng (migration `f4a5b6c7d8e9`)
+
+Migration `backend/alembic/versions/20261107_0920_f4a5b6c7d8e9_ensure_payment_uniqueness.py`
+tạo lại 2 index trên bằng `CREATE UNIQUE INDEX IF NOT EXISTS` (idempotent):
+
+```sql
+CREATE UNIQUE INDEX IF NOT EXISTS uq_orders_transaction_id
+ON orders (transaction_id) WHERE transaction_id IS NOT NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_payment_webhook_provider_txid
+ON payment_webhook_logs (provider, transaction_id);
+```
+
+**Vì sao cần:** nếu DB được tạo bằng `create_all` (test) thay vì alembic thì constraint
+trong migration `c1d2e3f4a5b6` bị bỏ sót ⇒ mất lớp chống trùng ở tầng DB.
+
+**Vì sao tầng DB là bắt buộc:** check ở tầng application (`update_payment_status`)
+có race condition. Với isolation level `read committed`, 2 request song song
+(webhook + reconcile) cùng 1 giao dịch sẽ:
+
+1. cả 2 `SELECT` → không thấy duplicate (chưa ai ghi)
+2. cả 2 `UPDATE` → cả 2 đơn thành `paid` ⇒ **cộng tiền 2 lần**
+
+Đã tái hiện thực tế: 1 giao dịch `SB…` → 2 đơn cùng `paid` khi thiếu unique index.
+Thêm index → `UniqueViolationError: duplicate key value violates unique constraint
+"uq_orders_transaction_id"` ⇒ chặn đúng.
+
+> Lưu ý vận hành: khi unique index chặn, request webhook nhận lỗi 500 → SePay retry.
+> Cần bắt lỗi này ở tầng API và trả `{"success": true}` (đã idempotent ở tầng app) —
+> xem `update_payment_status` trong `app/service/order_service.py`.
+
 ## 5. Cấu trúc JSON columns
 
 ### 5.1 `products.skin_types`
@@ -399,6 +432,31 @@ Quy tắc:
 - `variants = null` — sản phẩm không có biến thể, dùng `price`/`stock` chính.
 - `variants = [...]` — mỗi variant có giá/stock riêng. Khi order/checkout phải chọn 1 variant cụ thể.
 - Khi order, snapshot `variant_info = {"id": "v1", "name": "Do Ruby"}` vào `order_items` (xem §5.6).
+
+**Validation (BE, `app/schemas/product.py` — `VariantInfo` + `_normalize_variants`):**
+
+| Field | Bắt buộc | Ràng buộc |
+|---|---|---|
+| `id` | ✅ | Chuỗi 1–64 ký tự, **duy nhất trong 1 sản phẩm** (cart key = `product_id` + `variant_id`) |
+| `name` | ✅ | Chuỗi 1–255 ký tự |
+| `price` | ❌ | `>= 0`, `null` → FE fallback về `products.price` |
+| `stock` | ❌ | `>= 0`, `null` → lưu `0` (tránh lỗi `None < qty` khi order) |
+| `image_url` | ❌ | URL ảnh riêng của biến thể |
+
+Admin UI (`pages/admin/Products.tsx`) dùng `Form.List` để nhập; `id` để trống sẽ được tự sinh (`v1`, `v2`…).
+
+**Quy tắc stock (1 nguồn sự thật duy nhất):**
+
+| Trường hợp | Nguồn sự thật | `products.stock` |
+|---|---|---|
+| Sản phẩm **không** có variants | `products.stock` | = giá trị nhập của admin |
+| Sản phẩm **có** variants | `variants[i].stock` | = **tổng** stock các variants (giá trị dẫn xuất) |
+
+- Không được trừ **cả** `variants[i].stock` **và** `products.stock` → 2 nguồn độc lập lệch nhau
+  (admin nhập tay `product.stock = 0` trong khi variants còn hàng → sản phẩm hiện "Hết hàng").
+- Logic tập trung tại `app/service/product_stock.py` (`recompute_stock`, `effective_stock`).
+- API trả `stock` = `effective_stock(product)` → luôn khớp với tổng stock variants.
+- Admin UI: field "Stock" **disabled** khi sản phẩm có biến thể (BE tự tính lại).
 
 ### 5.6 `order_items.variant_info`
 

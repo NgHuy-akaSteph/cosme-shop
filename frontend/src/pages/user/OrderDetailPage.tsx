@@ -18,8 +18,8 @@ interface OrderItem {
   qty: number;
   subtotal: string;
   variant_info: {
-    color?: string;
-    size?: string;
+    id?: string;
+    name?: string;
   } | null;
 }
 
@@ -88,6 +88,11 @@ export default function OrderDetailPage() {
   
   const itemColumns = [
     { title: 'Sản phẩm', dataIndex: 'product_name' },
+    {
+      title: 'Phân loại',
+      dataIndex: 'variant_info',
+      render: (v: OrderItem['variant_info']) => v?.name ?? '-',
+    },
     { title: 'Giá', dataIndex: 'product_price', render: (p: string) => formatPrice(p) },
     { title: 'SL', dataIndex: 'qty', width: 60 },
     { title: 'Tổng', dataIndex: 'subtotal', render: (s: string) => formatPrice(s) },

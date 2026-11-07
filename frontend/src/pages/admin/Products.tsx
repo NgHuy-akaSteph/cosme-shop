@@ -32,12 +32,20 @@ import ProductImageManager from '../../components/admin/ProductImageManager';
 import ProductImageGalleryModal from '../../components/admin/ProductImageGalleryModal';
 import ProductStagedUploader from '../../components/admin/ProductStagedUploader';
 import type { PendingUpload } from '../../components/admin/ProductStagedUploader';
-import type { ProductImage } from '../../types/product';
+import type { ProductImage, ProductVariant } from '../../types/product';
 
 const { Title, Text } = Typography;
 
+/** 1 bien the trong form admin. `id` tu sinh neu admin de trong. */
+interface VariantFormRow {
+  id?: string;
+  name?: string;
+  price?: number | null;
+  stock?: number | null;
+}
+
 interface AdminProduct {
-  id: number;
+    id: number;
   name: string;
   price: number;
   sale_price: number | null;
@@ -47,11 +55,12 @@ interface AdminProduct {
   category_id: number;
   brand_id: number;
   category: { name: string } | null;
-  brand: { name: string } | null;
+    brand: { name: string } | null;
   skin_types?: string[] | null;
   concerns?: string[] | null;
   key_ingredients?: string[] | null;
   free_from?: string[] | null;
+  variants?: VariantFormRow[] | null;
   image_url?: string | null;
   images?: ProductImage[] | null;
 }
@@ -67,7 +76,7 @@ interface Brand {
 }
 
 interface ProductFormValues {
-  name: string;
+    name: string;
   price: number;
   sale_price?: number | null;
   stock: number;
@@ -77,7 +86,63 @@ interface ProductFormValues {
   skin_types?: string[];
   concerns?: string[];
   key_ingredients?: string[];
-  free_from?: string[];
+    free_from?: string[];
+  variants?: VariantFormRow[];
+}
+
+/**
+ * Payload gui len BE. `variants` cho phep `null` (san pham khong co bien the)
+ * va dung shape `ProductVariant` de khop schema `VariantInfo` cua backend.
+ */
+type ProductSubmitValues = Omit<ProductFormValues, 'variants'> & {
+  variants?: ProductVariant[] | null;
+};
+
+/**
+ * Sinh `id` cho bien the khi admin de trong.
+ * `id` phai duy nhat trong 1 san pham (cart key = product_id + variant_id).
+ */
+function buildVariantId(taken: Set<string>, index: number): string {
+  let counter = index + 1;
+  let candidate = `v${counter}`;
+  while (taken.has(candidate)) {
+    counter += 1;
+    candidate = `v${counter}`;
+  }
+  return candidate;
+}
+
+/**
+ * Chuan hoa variants truoc khi gui BE:
+ * - bo dong rong (khong co ten)
+ * - gan `id` neu admin de trong, hoac khi id bi trung
+ * - ep `price`/`stock` thanh number, `stock` null -> 0
+ */
+function normalizeVariants(rows: VariantFormRow[] | undefined): ProductVariant[] {
+  if (!rows?.length) return [];
+
+  const taken = new Set<string>();
+  const result: ProductVariant[] = [];
+
+  rows.forEach((row, index) => {
+    const name = row.name?.trim();
+    if (!name) return; // dong rong -> bo qua
+
+    let id = row.id?.trim();
+    if (!id || taken.has(id)) {
+      id = buildVariantId(taken, index);
+    }
+    taken.add(id);
+
+    result.push({
+      id,
+      name,
+      price: row.price ?? null,
+      stock: row.stock ?? 0,
+    });
+  });
+
+  return result;
 }
 
 function formatPrice(price: number): string {
@@ -90,6 +155,11 @@ export default function AdminProducts() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<AdminProduct | null>(null);
   const [form] = Form.useForm<ProductFormValues>();
+
+  // San pham co bien the -> `stock` la gia tri dan xuat (tong stock variants),
+  // BE tu tinh lai. Admin khong nhap tay de tranh 2 nguon stock lech nhau.
+  const watchedVariants = Form.useWatch('variants', form);
+  const hasVariantRows = (watchedVariants?.length ?? 0) > 0;
 
   // Modal quan ly anh rieng
   const [galleryProduct, setGalleryProduct] = useState<AdminProduct | null>(null);
@@ -125,7 +195,7 @@ export default function AdminProducts() {
   });
 
   const createMutation = useMutation({
-    mutationFn: async (values: ProductFormValues) => {
+    mutationFn: async (values: ProductSubmitValues) => {
       const res = await api.post('/api/products', values);
       return res.data;
     },
@@ -142,7 +212,7 @@ export default function AdminProducts() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: async ({ id, ...values }: ProductFormValues & { id: number }) => {
+    mutationFn: async ({ id, ...values }: ProductSubmitValues & { id: number }) => {
       const res = await api.patch(`/api/products/${id}`, values);
       return res.data;
     },
@@ -181,6 +251,12 @@ export default function AdminProducts() {
         concerns: product.concerns ?? [],
         key_ingredients: product.key_ingredients ?? [],
         free_from: product.free_from ?? [],
+        variants: (product.variants ?? []).map((v) => ({
+          id: v.id,
+          name: v.name,
+          price: v.price ?? null,
+          stock: v.stock ?? 0,
+        })),
       });
     } else {
       setEditingProduct(null);
@@ -199,10 +275,23 @@ export default function AdminProducts() {
   };
 
   const handleSubmit = (values: ProductFormValues) => {
+    // Chuan hoa variants: bo dong rong, gan id, ep number.
+    // Khong co bien the -> null de BE luu NULL (khong phai mang rong).
+    const normalized = normalizeVariants(values.variants);
+    const payload = {
+      ...values,
+      variants: normalized.length ? normalized : null,
+      // San pham co bien the -> `stock` la gia tri dan xuat (= tong stock
+      // variants). BE se tinh lai, gui len de UI hien thi dung ngay.
+      stock: normalized.length
+        ? normalized.reduce((sum, v) => sum + (v.stock ?? 0), 0)
+        : values.stock,
+    };
+
     if (editingProduct) {
-      updateMutation.mutate({ id: editingProduct.id, ...values });
+      updateMutation.mutate({ id: editingProduct.id, ...payload });
     } else {
-      createMutation.mutate(values);
+      createMutation.mutate(payload);
     }
   };
 
@@ -266,6 +355,16 @@ export default function AdminProducts() {
         ),
     },
     { title: 'Stock', dataIndex: 'stock' },
+    {
+      title: 'Biến thể',
+      dataIndex: 'variants',
+      render: (variants: VariantFormRow[] | null | undefined) =>
+        variants?.length ? (
+          <Tag color="blue">{variants.length} phân loại</Tag>
+        ) : (
+          <Text type="secondary">-</Text>
+        ),
+    },
     {
       title: 'Trạng thái',
       dataIndex: 'is_active',
@@ -343,8 +442,23 @@ export default function AdminProducts() {
           </Space>
 
           <Space style={{ width: '100%' }}>
-            <Form.Item name="stock" label="Stock" rules={[{ required: true }]} style={{ flex: 1 }}>
-              <InputNumber min={0} style={{ width: '100%' }} />
+            <Form.Item
+              name="stock"
+              label="Stock"
+              rules={hasVariantRows ? [] : [{ required: true }]}
+              style={{ flex: 1 }}
+              extra={
+                hasVariantRows
+                  ? 'Tự tính = tổng stock các biến thể'
+                  : undefined
+              }
+            >
+              <InputNumber
+                min={0}
+                style={{ width: '100%' }}
+                disabled={hasVariantRows}
+                placeholder={hasVariantRows ? 'Tự động tính' : undefined}
+              />
             </Form.Item>
 
             <Form.Item
@@ -395,6 +509,76 @@ export default function AdminProducts() {
 
           <Form.Item name="description" label="Mô tả">
             <Input.TextArea rows={3} />
+          </Form.Item>
+
+          {/* Bien the (phan loai) - dung Form.List de them/xoa dong */}
+          <Form.Item
+            label="Biến thể (phân loại)"
+            extra="Để trống nếu sản phẩm không có phân loại. Mỗi biến thể có giá và tồn kho riêng."
+          >
+            <Form.List name="variants">
+              {(fields, { add, remove }) => (
+                <>
+                  {fields.map((field) => (
+                    <Space key={field.key} align="start" style={{ marginBottom: 8 }}>
+                      <Form.Item
+                        {...field}
+                        name={[field.name, 'id']}
+                        label="ID"
+                        rules={[{ required: true, message: 'Cần ID' }]}
+                      >
+                        <Input placeholder="v1" style={{ width: 90 }} />
+                      </Form.Item>
+
+                      <Form.Item
+                        {...field}
+                        name={[field.name, 'name']}
+                        label="Tên"
+                        rules={[{ required: true, message: 'Cần tên biến thể' }]}
+                      >
+                        <Input placeholder="Đỏ Ruby" style={{ width: 160 }} />
+                      </Form.Item>
+
+                      <Form.Item
+                        {...field}
+                        name={[field.name, 'price']}
+                        label="Giá"
+                      >
+                        <InputNumber
+                          min={0}
+                          step={1000}
+                          placeholder="350000"
+                          style={{ width: 140 }}
+                        />
+                      </Form.Item>
+
+                      <Form.Item
+                        {...field}
+                        name={[field.name, 'stock']}
+                        label="Stock"
+                      >
+                        <InputNumber min={0} placeholder="20" style={{ width: 100 }} />
+                      </Form.Item>
+
+                      <Button
+                        danger
+                        icon={<DeleteOutlined />}
+                        onClick={() => remove(field.name)}
+                      />
+                    </Space>
+                  ))}
+
+                  <Button
+                    type="dashed"
+                    block
+                    icon={<PlusOutlined />}
+                    onClick={() => add({ id: undefined, name: '', price: null, stock: 0 })}
+                  >
+                    Thêm biến thể
+                  </Button>
+                </>
+              )}
+            </Form.List>
           </Form.Item>
 
           {/* Phan quan ly anh san pham */}

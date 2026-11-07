@@ -10,6 +10,7 @@ from app.api.deps import get_current_user
 from app.model.user import User
 from app.schemas.wishlist import WishlistResponse
 from app.service import wishlist_service
+from app.service import product_stock
 
 router = APIRouter(prefix="/api/wishlist", tags=["wishlist"])
 
@@ -33,7 +34,7 @@ def _product_to_dict(p) -> dict[str, Any]:
         "description": p.description,
         "price": str(p.price),
         "sale_price": str(p.sale_price) if p.sale_price else None,
-        "stock": p.stock,
+        "stock": product_stock.effective_stock(p),
         "image_url": main_image_url,
         "image_urls": main_image_urls,
     }

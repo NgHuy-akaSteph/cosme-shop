@@ -157,6 +157,12 @@ Biến SePay:
 | `SEPAY_PAYMENT_CODE_PREFIX` | Tiền tố mã thanh toán (`order_code`). **Phải khớp** với mẫu mã khai báo trên dashboard SePay (Công ty → Cấu hình chung → Cấu trúc mã thanh toán). Lệch ⇒ SePay không trích được `code` ⇒ không gửi webhook ⇒ mất tiền |
 | `SEPAY_PAYMENT_CODE_SUFFIX_LENGTH` | Độ dài hậu tố (chữ số) của mã thanh toán. Mặc định `12` (`ORD` + `YYYYMMDD` + 4 số). Phải khớp mẫu mã trên dashboard SePay |
 
+> **Fail-fast lúc start:** `app/payment/payment_config_check.py` chạy trong `lifespan` của
+> `app.main`. App **không start** nếu `SEPAY_PAYMENT_CODE_PREFIX` sai độ dài,
+> `SEPAY_PAYMENT_CODE_SUFFIX_LENGTH` ngoài 1–30, tổng mã > 32 ký tự, hoặc
+> VietinBank (`SEPAY_BANK_NAME=ICB`) mà thiếu `SEVQR` trong `SEPAY_QR_CONTENT_PREFIX`.
+> Cấu hình sai chỉ lộ ra khi có giao dịch thật ⇒ mất tiền im lặng.
+
 ### 4.2 `ai/.env`
 
 ```dotenv

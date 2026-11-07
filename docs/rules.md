@@ -430,6 +430,18 @@ export default api;
 
 - `variants = null` → sản phẩm không có biến thể, dùng `price`/`stock` chính.
 - `variants = [...]` → mỗi variant có giá/stock riêng.
+- **Mỗi variant BẮT BUỘC có `id` + `name`**; `id` phải duy nhất trong 1 sản phẩm
+  (cart key = `product_id` + `variant_id`); `price`/`stock` phải `>= 0`.
+  BE validate bằng `VariantInfo` (`app/schemas/product.py`) → trả 400 nếu sai.
+- Admin UI nhập biến thể qua `Form.List` (`pages/admin/Products.tsx`); `id` để trống → tự sinh.
+
+**Quy tắc stock (1 nguồn sự thật):**
+
+- Sản phẩm **không** có variants → `products.stock` là nguồn sự thật.
+- Sản phẩm **có** variants → `variants[i].stock` là nguồn sự thật; `products.stock` là
+  **giá trị dẫn xuat** = tổng stock các variants (KHÔNG trừ độc lập cả hai).
+- Mọi logic stock nằm ở `app/service/product_stock.py` (`recompute_stock`, `effective_stock`).
+- Sản phẩm có variants mà đơn không có `variant_id` → từ chối (tránh bán quá tồn kho).
 
 ## 8. API Conventions
 
@@ -537,6 +549,30 @@ delivered, cancelled = final
 - Đối soát (`POST /api/payment/reconcile`): quét SePay API v2 `/transactions` (có phân trang).
   - `transaction_date_to` là **exclusive** ⇒ phải dùng `hôm nay + 1 ngày`, nếu không sẽ luôn `scanned = 0`.
   - Dùng **cùng khoá** `reference_number` ⇒ không đánh paid trùng với webhook.
+- **Chống trùng ở 2 tầng** (bắt buộc cả hai):
+  - Tầng app: `update_payment_status()` check `Order.transaction_id` trước khi ghi.
+  - Tầng DB: unique index `uq_orders_transaction_id` (partial, `transaction_id IS NOT NULL`)
+    + `uq_payment_webhook_provider_txid`.
+  - Tầng app **không đủ**: 2 request song song (webhook + reconcile) cùng 1 giao dịch đều đọc
+    "không thấy duplicate" trước khi ghi ⇒ cả 2 đơn cùng `paid` ⇒ cộng tiền 2 lần.
+    Unique index DB là chốt chặn cuối cùng.
+  - Migration `f4a5b6c7d8e9` tạo index idempotent (`IF NOT EXISTS`) vì DB có thể được
+    tạo bởi `create_all` (bỏ sót constraint) thay vì alembic.
+
+### 9.6.1 Fail-fast lúc start app
+
+`app/payment/payment_config_check.py` chạy trong `lifespan` của `app.main` →
+app **không start** nếu cấu hình thanh toán sai. Lý do: cấu hình sai chỉ lộ ra
+khi có giao dịch thật ⇒ tiền vào tài khoản nhưng đơn kẹt `unpaid` (mất tiền im lặng).
+
+- **Chặn start (raise):**
+  - `SEPAY_PAYMENT_CODE_PREFIX` phải 2–5 ký tự (quy định SePay).
+  - `SEPAY_PAYMENT_CODE_SUFFIX_LENGTH` phải 1–30.
+  - Tổng độ dài mã ≤ 32 (giới hạn cột `orders.order_code`).
+  - Nếu `SEPAY_BANK_NAME = ICB` (VietinBank) ⇒ `SEPAY_QR_CONTENT_PREFIX` phải chứa `SEVQR`.
+    VietinBank cá nhân bắt buộc `SEVQR` trong nội dung CK; thiếu ⇒ SePay **không** đẩy
+    giao dịch về webhook ⇒ mất tiền.
+- **Chỉ cảnh báo (app vẫn start):** thiếu `SEPAY_BANK_ACCOUNT` / `SEPAY_WEBHOOK_SECRET` / `SEPAY_API_TOKEN`.
 
 ### 9.7 Admin tracking
 

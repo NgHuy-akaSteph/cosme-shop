@@ -237,6 +237,12 @@ async def sepay_webhook(
         _mark_webhook_status(log_row, "processed")
         await db.commit()
         logger.info("SePay: da danh paid don %s (tx=%s).", order_code, transaction_id)
+    except order_service.DuplicateTransactionError as exc:
+        # Giao dich da gan cho don khac (unique index DB chan - race condition).
+        # Da idempotent o tang app nen tra 200 cho SePay khong retry vo ich.
+        logger.warning("SePay: %s", exc)
+        await db.rollback()
+        return {"success": True}
     except Exception as exc:
         logger.exception("SePay webhook failed for order %s", order_code)
         await db.rollback()

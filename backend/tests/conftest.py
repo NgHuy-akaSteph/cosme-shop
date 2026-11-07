@@ -64,6 +64,24 @@ def _qualified_tables(schema: str) -> list[str]:
     )
 
 
+async def _get_existing_indexes(conn, schema: str) -> dict[str, set[str]]:
+    """Danh sach index thuc te cua moi bang trong schema (theo ten index)."""
+    result = await conn.execute(
+        text(
+            """
+            SELECT tablename, indexname
+            FROM pg_indexes
+            WHERE schemaname = :schema
+            """
+        ),
+        {"schema": schema},
+    )
+    indexes: dict[str, set[str]] = {}
+    for table_name, index_name in result:
+        indexes.setdefault(table_name, set()).add(index_name)
+    return indexes
+
+
 async def _drop_outdated_tables(conn, metadata: MetaData, schema: str) -> list[str]:
     """
     Drop cac bang co schema khong khop voi model hien tai.
@@ -97,6 +115,8 @@ async def _drop_outdated_tables(conn, metadata: MetaData, schema: str) -> list[s
     for table_name, column_name in result:
         existing.setdefault(table_name, set()).add(column_name)
 
+    existing_indexes = await _get_existing_indexes(conn, schema)
+
     dropped: list[str] = []
     for table in metadata.sorted_tables:
         actual = existing.get(table.name)
@@ -104,7 +124,19 @@ async def _drop_outdated_tables(conn, metadata: MetaData, schema: str) -> list[s
             continue  # Chua ton tai -> create_all se tao moi
 
         expected = {col.name for col in table.columns}
-        if actual != expected:
+        columns_match = actual == expected
+
+        # Index cung phai khop: `create_all` KHONG tao them index vao bang
+        # da ton tai (chi tao bang thieu). Index unique la lop bao ve cuoi
+        # cung (vd `uq_orders_transaction_id`) - thieu index -> test bao ve
+        # do se PASS nham ma thuc te khong co rang buoc.
+        actual_indexes = existing_indexes.get(table.name, set())
+        expected_indexes = {
+            idx.name for idx in table.indexes if idx.name is not None
+        }
+        indexes_match = expected_indexes.issubset(actual_indexes)
+
+        if not (columns_match and indexes_match):
             await conn.execute(
                 text(f'DROP TABLE IF EXISTS "{schema}"."{table.name}" CASCADE')
             )

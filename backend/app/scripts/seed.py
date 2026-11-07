@@ -98,6 +98,7 @@ async def seed_database():
             {"name": "Toner", "slug": "toner", "description": "Nước cân bằng da", "image_url": "https://images.unsplash.com/photo-1617897903246-719242758050?w=400"},
             {"name": "Moisturizer", "slug": "moisturizer", "description": "Kem dưỡng ẩm", "image_url": "https://images.unsplash.com/photo-1611930022073-b7a4ba5fcccd?w=400"},
             {"name": "Mask", "slug": "mask", "description": "Mặt nạ", "image_url": "https://images.unsplash.com/photo-1596755389378-c31d21fd1273?w=400"},
+            {"name": "Lip Care", "slug": "lip-care", "description": "Chăm sóc môi", "image_url": "https://images.unsplash.com/photo-1586495777744-4413f21062fa?w=400"},
         ]
         
         categories = []
@@ -495,6 +496,72 @@ async def seed_database():
                 "sold_count": 187,
                 "rating_avg": Decimal("4.5"),
                 "rating_count": 143,
+            },
+            # --- San pham CO bien the (phan loai) ---
+            {
+                "name": "Son Môi Cocoon Đỏ Ruby",
+                "slug": "son-moi-cocoon-do-ruby",
+                "description": "Son môi lưỡng tính dưỡng, có nhiều màu để lựa chọn",
+                "price": Decimal("220000"),
+                "stock": 60,
+                "image_url": "https://images.unsplash.com/photo-1586495777744-4413f21062fa?w=400",
+                "category_id": categories[8].id,  # Lip Care
+                "brand_id": brands[2].id,  # Cocoon
+                "skin_types": None,
+                "concerns": None,
+                "key_ingredients": ["vitamin_e", "shea_butter"],
+                "free_from": ["parabens"],
+                "variants": [
+                    {"id": "v1", "name": "Đỏ Ruby", "price": 220000, "stock": 25},
+                    {"id": "v2", "name": "Hồng Pastel", "price": 220000, "stock": 20},
+                    {"id": "v3", "name": "Nude Coffee", "price": 235000, "stock": 15},
+                ],
+                "sold_count": 210,
+                "rating_avg": Decimal("4.6"),
+                "rating_count": 156,
+            },
+            {
+                "name": "Tinted Sunscreen SPF50 Innisfree",
+                "slug": "innisfree-tinted-sunscreen-spf50",
+                "description": "Kem chống nắng có màu, phân loại theo tông da",
+                "price": 320000,
+                "stock": 40,
+                "image_url": "https://images.unsplash.com/photo-1556228720-195a672e8a03?w=400",
+                "category_id": categories[2].id,  # Sunscreen
+                "brand_id": brands[3].id,  # Innisfree
+                "skin_types": ["normal", "combination", "dry"],
+                "concerns": ["dehydration", "dullness"],
+                "key_ingredients": ["centella", "niacinamide"],
+                "free_from": ["fragrance"],
+                "variants": [
+                    {"id": "v1", "name": "#21 Beige", "price": 320000, "stock": 18},
+                    {"id": "v2", "name": "#23 Natural", "price": 320000, "stock": 22},
+                ],
+                "sold_count": 88,
+                "rating_avg": Decimal("4.4"),
+                "rating_count": 64,
+            },
+            {
+                "name": "Mặt Nạ Lọp Klairs Dưỡng Sáng",
+                "slug": "klairs-mat-na-lop-duong-sang",
+                "description": "Dòng mặt nạ lọp, có nhiều loại cho từng nhu cầu da",
+                "price": 450000,
+                "stock": 30,
+                "image_url": "https://images.unsplash.com/photo-1596755389378-c31d21fd1273?w=400",
+                "category_id": categories[7].id,  # Mask
+                "brand_id": brands[4].id,  # Klairs
+                "skin_types": ["normal", "dry", "combination"],
+                "concerns": ["dehydration", "dullness", "dark_spots"],
+                "key_ingredients": ["centella", "hyaluronic_acid", "niacinamide"],
+                "free_from": ["alcohol", "fragrance"],
+                "variants": [
+                    {"id": "v1", "name": "Green Tea", "price": 450000, "stock": 12},
+                    {"id": "v2", "name": "Blueberry", "price": 450000, "stock": 10},
+                    {"id": "v3", "name": "Red Berry", "price": 480000, "stock": 8},
+                ],
+                "sold_count": 64,
+                "rating_avg": Decimal("4.5"),
+                "rating_count": 47,
             },
         ]
         

@@ -10,6 +10,7 @@ from sqlalchemy.orm import selectinload
 from app.model.product import Product
 from app.model.category import Category
 from app.model.brand import Brand
+from app.service import product_stock
 
 
 def generate_slug(name: str) -> str:
@@ -232,7 +233,11 @@ async def create_product(
         brand_id=brand_id,
         **kwargs
     )
-    
+
+    # `products.stock` la gia tri dan xuat khi san pham co bien the
+    # (= tong stock variants) - xem service/product_stock.py.
+    product_stock.recompute_stock(product)
+
     db.add(product)
     await db.commit()
     await db.refresh(product)
@@ -265,10 +270,16 @@ async def update_product(
         if value is None and key not in NULLABLE_FIELDS:
             raise ValueError(f"Không thể đặt null cho trường bắt buộc: {key}")
         setattr(product, key, value)
-    
+
+    # Dong bo `stock` voi variants: khi san pham co bien the, `products.stock`
+    # la gia tri DAN XUAT = tong stock variants (xem service/product_stock.py).
+    # Neu admin vua them/xoa/sua bien the -> stock phai cap nhat theo.
+    if "variants" in kwargs or product.variants:
+        product_stock.recompute_stock(product)
+
     await db.commit()
     await db.refresh(product)
-    
+
     return await get_product_by_id(db, product_id)
 
 

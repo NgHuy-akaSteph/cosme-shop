@@ -7,6 +7,7 @@ from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import and_, func, select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlalchemy.orm.attributes import flag_modified
@@ -16,8 +17,35 @@ from app.model.order_item import OrderItem
 from app.model.order_status_history import OrderStatusHistory
 from app.model.product import Product
 from app.payment.payment_code import build_payment_code
+from app.service import product_stock
 
 logger = logging.getLogger(__name__)
+
+# Ten unique index chan 1 giao dich -> toi da 1 don.
+DUPLICATE_TRANSACTION_CONSTRAINT = "uq_orders_transaction_id"
+
+
+class DuplicateTransactionError(Exception):
+    """Giao dich da duoc gan cho don khac (bi unique index DB chan)."""
+
+    def __init__(self, transaction_id: str | None, order_code: str):
+        super().__init__(
+            f"Transaction {transaction_id} da duoc gan cho don khac, bo qua don {order_code}"
+        )
+        self.transaction_id = transaction_id
+        self.order_code = order_code
+
+
+def _is_duplicate_transaction(exc: IntegrityError) -> bool:
+    """Loi `IntegrityError` co phai do unique index chong trung giao dich khong."""
+    orig = getattr(exc, "orig", None)
+    constraint = getattr(orig, "constraint_name", None) or ""
+    if constraint == DUPLICATE_TRANSACTION_CONSTRAINT:
+        return True
+    # Driver khac khong expose `constraint_name` -> fallback theo message.
+    return DUPLICATE_TRANSACTION_CONSTRAINT in str(orig) or (
+        DUPLICATE_TRANSACTION_CONSTRAINT in str(exc)
+    )
 
 
 def _get_main_image_url(product: Product) -> str | None:
@@ -182,35 +210,48 @@ async def create_order(
         
         variant_id = item.get("variant_id")
         qty = item["qty"]
-        
-        # Get price from variant or product
+
+        # --- Chon bien the (neu co) ---
         variant_info = None
-        if variant_id and product.variants:
-            for v in product.variants:
-                if v.get("id") == variant_id:
-                    variant_info = {"id": v["id"], "name": v["name"]}
-                    # Check variant stock
-                    if v.get("stock", 0) < qty:
-                        raise ValueError(f"Sản phẩm {product.name} ({v['name']}) không đủ stock")
-                    break
-            else:
+        variant = None
+        if variant_id:
+            if not product_stock.has_variants(product):
+                raise ValueError(
+                    f"Sản phẩm {product.name} không có phân loại nào"
+                )
+            variant = product_stock.find_variant(product, variant_id)
+            if variant is None:
                 raise ValueError(f"Variant {variant_id} không tồn tại")
+            variant_info = {"id": variant["id"], "name": variant["name"]}
+            # Check stock cua bien the
+            if product_stock.variant_stock(variant) < qty:
+                raise ValueError(
+                    f"Sản phẩm {product.name} ({variant['name']}) không đủ stock"
+                )
+        elif product_stock.has_variants(product):
+            # San pham co bien the -> phai chon cu the (xem docs/rules.md §7.3).
+            # Neu cho qua, `products.stock` (gia tri dan xuat) se khong giam
+            # duoc -> ban qua ton kho.
+            raise ValueError(
+                f"Sản phẩm {product.name} có nhiều phân loại, vui lòng chọn phân loại"
+            )
         else:
-            # No variant - check product stock
+            # San pham khong co bien the -> `products.stock` la nguon su that
             if product.stock < qty:
                 raise ValueError(f"Sản phẩm {product.name} không đủ stock")
-        
+
         # Calculate item subtotal
         if variant_info:
-            item_price = next(
-                (v.get("price", float(product.price)) for v in product.variants if v.get("id") == variant_id),
-                float(product.price)
+            item_price = float(
+                variant.get("price")
+                if variant.get("price") is not None
+                else product.price
             )
         else:
             item_price = float(product.sale_price if product.sale_price else product.price)
-        
+
         item_subtotal = Decimal(str(item_price)) * qty
-        
+
         order_item = OrderItem(
             product_id=product.id,
             product_name=product.name,
@@ -222,15 +263,14 @@ async def create_order(
         )
         order_items.append(order_item)
         subtotal += item_subtotal
-        
-        # Update stock
-        if variant_id and product.variants:
-            for v in product.variants:
-                if v.get("id") == variant_id:
-                    v["stock"] -= qty
-                    product.stock -= qty
-                    flag_modified(product, "variants")
-                    break
+
+        # --- Cap nhat stock ---
+        if variant is not None:
+            # Nguon su that la stock cua bien the; `products.stock` se duoc
+            # tinh lai = tong stock variants (khong tru truc tiep).
+            variant["stock"] = product_stock.variant_stock(variant) - qty
+            flag_modified(product, "variants")
+            product_stock.recompute_stock(product)
         else:
             product.stock -= qty
     
@@ -413,12 +453,17 @@ async def cancel_order(
 
             if product:
                 variant_id = item.variant_info.get("id") if item.variant_info else None
-                if variant_id and product.variants:
-                    for v in product.variants:
-                        if v.get("id") == variant_id:
-                            v["stock"] = v.get("stock", 0) + item.qty
-                            flag_modified(product, "variants")
-                            break
+                if variant_id and product_stock.has_variants(product):
+                    variant = product_stock.find_variant(product, variant_id)
+                    if variant is not None:
+                        variant["stock"] = product_stock.variant_stock(variant) + item.qty
+                        flag_modified(product, "variants")
+                        # `products.stock` = tong stock variants (gia tri dan xuat)
+                        product_stock.recompute_stock(product)
+                        continue
+
+                # San pham khong co bien the (hoac bien the da bi xoa khoi
+                # san pham) -> hoan stock truc tiep vao `products.stock`.
                 product.stock += item.qty
 
         await db.commit()
@@ -437,6 +482,13 @@ async def update_payment_status(
     """
     Cap nhat trang thai thanh toan (webhook gateway).
     Idempotent: chi update neu chua paid; tu cho moi 1 transaction_id -> 1 don.
+
+    Raises:
+        DuplicateTransactionError: giao dich da duoc gan cho don khac. Do
+            CHECK o tang application co race condition (2 request song song
+            deu doc "khong thay duplicate" truoc khi ghi), unique index DB
+            `uq_orders_transaction_id` la chot chong cuoi cung => loi nay
+            phai duoc bat rieng, khong nuot chung vao loi 500.
     """
     order = await get_order_by_code(db, order_code)
     if order is None:
@@ -467,7 +519,20 @@ async def update_payment_status(
     if transaction_id:
         order.transaction_id = transaction_id
 
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError as exc:
+        # Unique index DB chan giao dich trung (race condition) -> rollback
+        # va nem loi rieng de tang API tra 200 thay vi 500.
+        await db.rollback()
+        if _is_duplicate_transaction(exc):
+            logger.warning(
+                "Transaction %s bi DB chan trung (unique index), bo qua don %s",
+                transaction_id,
+                order_code,
+            )
+            raise DuplicateTransactionError(transaction_id, order_code) from exc
+        raise
 
     return await get_order_by_id(db, order.id)
 

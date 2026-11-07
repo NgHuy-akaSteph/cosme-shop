@@ -13,6 +13,7 @@ from app.schemas.product import (
     ProductCreate, ProductUpdate, ProductResponse, ProductListResponse
 )
 from app.service import product_service
+from app.service import product_stock
 
 router = APIRouter(prefix="/api/products", tags=["products"])
 
@@ -45,7 +46,9 @@ def _product_to_dict(p) -> dict[str, Any]:
         "description": p.description,
         "price": str(p.price),
         "sale_price": str(p.sale_price) if p.sale_price else None,
-        "stock": p.stock,
+        # Stock hien thi: san pham co bien the -> tong stock variants
+        # (gia tri dan xuat, xem service/product_stock.py)
+        "stock": product_stock.effective_stock(p),
         # Synthesized for client convenience (frontend expects image_url field)
         "image_url": main_image_url,
         # URL bien the theo kich co hien thi (sinh tu public_id qua Cloudinary)

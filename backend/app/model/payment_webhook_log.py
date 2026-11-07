@@ -1,6 +1,6 @@
 """Model log webhook thanh toan (chong trung, audit, doi soat)"""
 
-from sqlalchemy import BigInteger, String, Text
+from sqlalchemy import BigInteger, Index, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -19,3 +19,13 @@ class PaymentWebhookLog(Base, IdMixin, TimestampMixin):
     payload: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     status: Mapped[str] = mapped_column(String(20), default="received", nullable=False)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # 1 giao dich chi tao duoc 1 dong log -> idempotent o tang DB.
+    __table_args__ = (
+        Index(
+            "uq_payment_webhook_provider_txid",
+            "provider",
+            "transaction_id",
+            unique=True,
+        ),
+    )

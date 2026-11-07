@@ -19,6 +19,28 @@ logging.basicConfig(
 )
 
 
+def _sanitize_validation_errors(errors: list[dict]) -> list[dict]:
+    """
+    Loai bo phan khong JSON-serializable khoi danh sach loi Pydantic.
+
+    Pydantic nhung exception goc vao `ctx["error"]` (vd `ValueError("ID bien the
+    bi trung")`) -> `JSONResponse` nem `TypeError` thay vi tra 400. Chi giu lai
+    `loc`, `msg`, `type` (de FE hien thi loi) va ep `ctx` ve dang string.
+    """
+    sanitized: list[dict] = []
+    for err in errors:
+        item = {
+            "loc": [str(p) for p in err.get("loc", ())],
+            "msg": err.get("msg", ""),
+            "type": err.get("type", ""),
+        }
+        ctx = err.get("ctx")
+        if ctx:
+            item["ctx"] = {k: str(v) for k, v in ctx.items()}
+        sanitized.append(item)
+    return sanitized
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Application lifespan events.
@@ -47,6 +69,17 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         except Exception as exc:
             print(f"AUTO_MIGRATE failed: {exc}")
             # Không raise để app vẫn start được nếu DB đã sẵn sàng
+
+    # Fail-fast khi cau hinh thanh toan sai: app khong start se tot hon
+    # de "mat tien im lang" khi giao dich that khong duoc SePay day ve webhook.
+    try:
+        from app.payment.payment_config_check import check_payment_config
+
+        check_payment_config()
+        print("Payment config OK")
+    except ValueError as exc:
+        print(f"PAYMENT CONFIG INVALID:\n{exc}")
+        raise
 
     yield
     # Shutdown
@@ -82,7 +115,7 @@ def create_app() -> FastAPI:
         request: Request, exc: RequestValidationError
     ) -> JSONResponse:
         """Handle Pydantic validation errors."""
-        errors = exc.errors()
+        errors = _sanitize_validation_errors(exc.errors())
         first = errors[0] if errors else {}
         msg = first.get("msg", "Dữ liệu không hợp lệ")
         return JSONResponse(
