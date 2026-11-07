@@ -53,6 +53,8 @@ def _sepay_secret(monkeypatch):
 
     monkeypatch.setattr(settings, "SEPAY_WEBHOOK_SECRET", TEST_SECRET)
     monkeypatch.setattr(settings, "SEPAY_API_KEY", "test-api-key")
+    # Khớp `accountNumber` trong payload giả (check tài khoản nhận tiền).
+    monkeypatch.setattr(settings, "SEPAY_BANK_ACCOUNT", "1017588888")
 
 
 async def _create_order(client, login, product, method="sepay"):
@@ -238,3 +240,86 @@ async def test_reconcile_requires_admin(client, login):
     res = await client.post("/api/payment/reconcile", headers=admin_headers)
     assert res.status_code == 200, res.text
     assert "scanned" in res.json()["data"]
+
+
+# ============================================
+# QR VietQR: format so tien + noi dung chuyen khoan
+# ============================================
+
+
+def test_format_vnd_amount_strips_decimal_and_exponent():
+    """`amount` phai la so nguyen VND, khong phai Decimal float/exponent."""
+    from decimal import Decimal
+
+    from app.payment.sepay_provider import format_vnd_amount
+
+    assert format_vnd_amount(Decimal("430000.0")) == "430000"
+    assert format_vnd_amount(Decimal("1.00E+6")) == "1000000"
+    assert format_vnd_amount(Decimal("1234500")) == "1234500"
+    assert format_vnd_amount(430000.0) == "430000"
+
+
+def test_qr_url_amount_is_plain_integer(monkeypatch):
+    """Total doc tu DB co the la Decimal -> QR amount phai la int thuan."""
+    from decimal import Decimal
+
+    from app.core.config import settings
+    from app.payment.sepay_provider import SePayProvider
+
+    monkeypatch.setattr(settings, "SEPAY_BANK_ACCOUNT", "0000000001")
+    monkeypatch.setattr(settings, "SEPAY_BANK_NAME", "ICB")
+    monkeypatch.setattr(settings, "SEPAY_QR_CONTENT_PREFIX", "")
+
+    class FakeOrder:
+        total = Decimal("430000.0")
+        order_code = "ORD202611040001"
+
+    qr_url = SePayProvider().create_payment_link(FakeOrder()).qr_url
+    assert qr_url is not None
+    assert "amount=430000&" in qr_url
+    assert "amount=430000.0" not in qr_url
+    assert "des=ORD202611040001" in qr_url
+
+
+def test_qr_content_prefix_sevqr_for_vietinbank(monkeypatch):
+    """VietinBank ca nhan bat buoc 'SEVQR' trong noi dung chuyen khoan."""
+    from decimal import Decimal
+
+    from app.core.config import settings
+    from app.payment.sepay_provider import SePayProvider
+
+    monkeypatch.setattr(settings, "SEPAY_BANK_ACCOUNT", "0000000001")
+    monkeypatch.setattr(settings, "SEPAY_BANK_NAME", "ICB")
+    monkeypatch.setattr(settings, "SEPAY_QR_CONTENT_PREFIX", "SEVQR")
+    monkeypatch.setattr(settings, "SEPAY_PAYMENT_CODE_PREFIX", "ORD")
+    monkeypatch.setattr(settings, "SEPAY_PAYMENT_CODE_SUFFIX_LENGTH", 12)
+
+    class FakeOrder:
+        total = Decimal("430000.0")
+        order_code = "ORD202611040001"
+
+    qr_url = SePayProvider().create_payment_link(FakeOrder()).qr_url
+    assert qr_url is not None
+    assert "des=SEVQR%20ORD202611040001" in qr_url
+
+
+def test_qr_content_without_bank_prefix(monkeypatch):
+    """Ngan hang khong yeu cau tien to -> `des` chi chua ma thanh toan."""
+    from decimal import Decimal
+
+    from app.core.config import settings
+    from app.payment.sepay_provider import SePayProvider
+
+    monkeypatch.setattr(settings, "SEPAY_BANK_ACCOUNT", "0000000001")
+    monkeypatch.setattr(settings, "SEPAY_BANK_NAME", "ICB")
+    monkeypatch.setattr(settings, "SEPAY_QR_CONTENT_PREFIX", "")
+    monkeypatch.setattr(settings, "SEPAY_PAYMENT_CODE_PREFIX", "ORD")
+    monkeypatch.setattr(settings, "SEPAY_PAYMENT_CODE_SUFFIX_LENGTH", 12)
+
+    class FakeOrder:
+        total = Decimal("430000.0")
+        order_code = "ORD202611040001"
+
+    qr_url = SePayProvider().create_payment_link(FakeOrder()).qr_url
+    assert qr_url is not None
+    assert "des=ORD202611040001" in qr_url

@@ -298,17 +298,25 @@ Hiển thị theo thứ tự thời gian ngược (mới nhất trên cùng).
 **SePay**
 
 - **Tạo đơn:**
-  1. Sinh `order_code` (VD: `DH123456` hoặc `ORD20260919XXXX`).
+  1. Sinh `order_code` theo mẫu mã thanh toán của SePay: `ORD` + `YYYYMMDD` + 4 số
+     (VD `ORD202609190013`, tổng 15 ký tự). Mẫu này **phải khớp** với mẫu khai báo ở
+     Công ty → Cấu hình chung → Cấu trúc mã thanh toán trên dashboard SePay.
   2. Trả về URL QR:
      ```
-     https://qr.sepay.vn/img?acc=...&bank=...&amount=...&des=ORDER_CODE
+     https://vietqr.app/img?acc=...&bank=...&amount=...&des=ORDER_CODE
      ```
+     - `amount` là số nguyên VND (không dấu `.0`/số mũ).
+     - `des` = nội dung chuyển khoản; một số ngân hàng bắt buộc có tiền tố
+       (VD VietinBank cá nhân → `SEVQR ORDER_CODE`). Cấu hình qua
+       `SEPAY_QR_CONTENT_PREFIX`.
   3. User chuyển khoản với nội dung chứa order code.
 - **Webhook:**
   1. Verify chữ ký HMAC-SHA256 trên raw body (`X-SePay-Signature` + `X-SePay-Timestamp`), fallback `Authorization: Apikey <SEPAY_API_KEY>`.
-  2. Parse payload camelCase: `code`, `content`, `transferAmount`, `id`, `transferType`.
-  3. Extract `order_code` từ `code`/`content` (regex `ORD\d+`).
+  2. Parse payload camelCase: `code`, `content`, `transferAmount`, `id`, `transferType`, `referenceCode`.
+  3. Extract `order_code` từ `code`/`content` (regex động theo `SEPAY_PAYMENT_CODE_PREFIX` + `SEPAY_PAYMENT_CODE_SUFFIX_LENGTH`).
   4. Ghi log `payment_webhook_logs` (idempotent theo `(provider, transaction_id)`).
+     `transaction_id` = `referenceCode` (mã tham chiếu ngân hàng) — ổn định giữa webhook và API v2;
+     fallback `str(id)` vì `id` khác kiểu giữa 2 nguồn (int vs UUID).
   5. Tìm order → check idempotent (đã paid → skip).
   6. Update `payment_status = paid`, `paid_at`, `transaction_id`.
   7. Trả `{success: true}` cho SePay.
@@ -319,8 +327,11 @@ Hiển thị theo thứ tự thời gian ngược (mới nhất trên cùng).
   - Amount thừa → vẫn đánh paid, ghi log.
   - Order đã `cancelled` → KHÔNG đánh paid, log `cancelled` (cần hoàn tiền thủ công).
   - Giao dịch chuyển ra (`transferType != "in"`) → bỏ qua, log `ignored`.
+  - Sai tài khoản nhận (`accountNumber` ≠ `SEPAY_BANK_ACCOUNT`) → KHÔNG đánh paid, log `wrong_account`.
   - Chữ ký sai / timestamp lệch > 300s → 401.
 - **Đối soát thủ công:** `POST /api/payment/reconcile` (admin) quét SePay API v2, đánh paid các đơn `sepay` còn `unpaid`.
+  - Cửa sổ ngày: `from = hôm nay - N ngày`, `to = hôm nay + 1 ngày` (SePay coi `transaction_date_to` là **exclusive**).
+  - Dùng cùng khoá `reference_number` ⇒ không đánh paid trùng với webhook.
 
 ### 3.7 Module AI
 

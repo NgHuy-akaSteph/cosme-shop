@@ -138,6 +138,10 @@ SEPAY_BANK_NAME=
 SEPAY_WEBHOOK_SECRET=
 SEPAY_API_TOKEN=
 SEPAY_API_BASE_URL=https://userapi.sepay.vn/v2
+SEPAY_QR_BASE_URL=https://vietqr.app/img
+SEPAY_QR_CONTENT_PREFIX=
+SEPAY_PAYMENT_CODE_PREFIX=ORD
+SEPAY_PAYMENT_CODE_SUFFIX_LENGTH=12
 ```
 
 Biến SePay:
@@ -148,6 +152,10 @@ Biến SePay:
 | `SEPAY_WEBHOOK_SECRET` | Secret ký HMAC-SHA256 webhook — khuyến nghị bật |
 | `SEPAY_API_TOKEN` | Bearer token cho SePay API v2 (đối soát) |
 | `SEPAY_API_BASE_URL` | Base URL SePay API, mặc định `https://userapi.sepay.vn/v2` (endpoint đối soát: `{base}/transactions`) |
+| `SEPAY_QR_BASE_URL` | Base URL sinh ảnh QR VietQR, mặc định `https://vietqr.app/img` |
+| `SEPAY_QR_CONTENT_PREFIX` | Chuỗi bắt buộc trong nội dung chuyển khoản. VietinBank (cá nhân / hộ kinh doanh) bắt buộc `SEVQR` — thiếu thì giao dịch **không** được SePay đẩy về webhook. Bỏ trống nếu ngân hàng không yêu cầu (Vietcombank, ACB, MBBank…) |
+| `SEPAY_PAYMENT_CODE_PREFIX` | Tiền tố mã thanh toán (`order_code`). **Phải khớp** với mẫu mã khai báo trên dashboard SePay (Công ty → Cấu hình chung → Cấu trúc mã thanh toán). Lệch ⇒ SePay không trích được `code` ⇒ không gửi webhook ⇒ mất tiền |
+| `SEPAY_PAYMENT_CODE_SUFFIX_LENGTH` | Độ dài hậu tố (chữ số) của mã thanh toán. Mặc định `12` (`ORD` + `YYYYMMDD` + 4 số). Phải khớp mẫu mã trên dashboard SePay |
 
 ### 4.2 `ai/.env`
 
@@ -181,8 +189,12 @@ VITE_API_URL=http://localhost:8000
 | `SEPAY_WEBHOOK_SECRET` | backend | Không | -- | Secret HMAC-SHA256 webhook (khuyến nghị bật) |
 | `SEPAY_API_TOKEN` | backend | Không | -- | Bearer token SePay API v2 (đối soát) |
 | `SEPAY_API_BASE_URL` | backend | Không | `https://userapi.sepay.vn/v2` | Base URL SePay API |
-| `SEPAY_BANK_ACCOUNT` | backend | Có | -- | STK nhận CK |
-| `SEPAY_BANK_NAME` | backend | Có | -- | Tên ngân hàng |
+| `SEPAY_BANK_ACCOUNT` | backend | Có | -- | STK nhận CK (hoặc số VA) |
+| `SEPAY_BANK_NAME` | backend | Có | -- | Mã ngắn ngân hàng (`vietqr.app/banks.json`) |
+| `SEPAY_QR_BASE_URL` | backend | Không | `https://vietqr.app/img` | Base URL sinh ảnh QR |
+| `SEPAY_QR_CONTENT_PREFIX` | backend | Không | -- | Chuỗi bắt buộc trong nội dung CK (`SEVQR` với VietinBank cá nhân) |
+| `SEPAY_PAYMENT_CODE_PREFIX` | backend | Không | `ORD` | Tiền tố mã thanh toán — phải khớp mẫu mã trên dashboard SePay |
+| `SEPAY_PAYMENT_CODE_SUFFIX_LENGTH` | backend | Không | `12` | Độ dài hậu tố (chữ số) của mã thanh toán |
 | `LLM_PROVIDER` | ai | Không | `gemini` | `gemini` \| `ollama` |
 | `GEMINI_API_KEY` | ai | Có (gemini) | -- | API key Gemini |
 | `OLLAMA_URL` | ai | Có (ollama) | -- | URL Ollama local |

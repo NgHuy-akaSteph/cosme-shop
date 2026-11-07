@@ -239,7 +239,7 @@ Mục đích: đơn hàng của user.
 |---|---|---|---|---|---|
 | `id` | `SERIAL` | No | auto | PK | |
 | `user_id` | `INTEGER` | No | -- | FK → `users.id` | |
-| `order_code` | `VARCHAR(32)` | No | -- | UNIQUE | Format `ORD` + `YYYYMMDD` + 4 số random |
+| `order_code` | `VARCHAR(32)` | No | -- | UNIQUE | Format mã thanh toán SePay: `ORD` + `YYYYMMDD` + 4 số random (tổng 15 ký tự). Cấu hình qua `SEPAY_PAYMENT_CODE_PREFIX` + `SEPAY_PAYMENT_CODE_SUFFIX_LENGTH` |
 | `status` | `VARCHAR(20)` | No | `'pending'` | | State machine — xem §6 |
 | `subtotal` | `NUMERIC(12,0)` | No | `0` | | Tổng tiền hàng |
 | `shipping_fee` | `NUMERIC(12,0)` | No | `30000` | | |
@@ -314,11 +314,11 @@ Mục đích: audit log webhook thanh toán — chống xử lý trùng (idempot
 |---|---|---|---|---|---|
 | `id` | `SERIAL` | No | auto | PK | |
 | `provider` | `VARCHAR(20)` | No | -- | | `sepay` |
-| `transaction_id` | `VARCHAR(64)` | No | -- | UNIQUE `(provider, transaction_id)` | ID giao dịch từ cổng thanh toán |
+| `transaction_id` | `VARCHAR(64)` | No | -- | UNIQUE `(provider, transaction_id)` | Khoá giao dịch = `referenceCode` (mã tham chiếu ngân hàng), ổn định giữa webhook và API v2; fallback `str(id)` |
 | `order_code` | `VARCHAR(32)` | Yes | NULL | | Mã đơn map được; NULL nếu không khớp |
 | `amount` | `INTEGER` | Yes | NULL | | Số tiền nhận (VNĐ) |
 | `payload` | `JSONB` | Yes | NULL | | Raw payload webhook để đối chiếu |
-| `status` | `VARCHAR(30)` | No | -- | | `received` \| `processed` \| `ignored` \| `unmatched` \| `cancelled` \| `amount_mismatch` |
+| `status` | `VARCHAR(30)` | No | -- | | `received` \| `processed` \| `ignored` \| `unmatched` \| `cancelled` \| `amount_mismatch` \| `wrong_account` |
 | `error` | `TEXT` | Yes | NULL | | Mô tả lỗi xử lý |
 | `created_at` | `TIMESTAMPTZ` | No | `now()` | | |
 
@@ -336,6 +336,10 @@ ON orders (transaction_id) WHERE transaction_id IS NOT NULL;
 ```
 
 Ý nghĩa: 1 giao dịch thanh toán chỉ được gán cho tối đa 1 đơn — chống double-mark-paid khi webhook đến lại hoặc đối soát chạy song song.
+
+Giá trị lưu = `referenceCode` (mã tham chiếu ngân hàng) chứ không phải `id` của SePay:
+webhook gửi `id` kiểu int (`44843`) còn API v2 gửi `id` kiểu UUID (`37dcdb04-...`) cho **cùng 1 giao dịch**.
+Dùng `id` sẽ khiến 2 nguồn ghi 2 giá trị khác nhau ⇒ index này không chặn được giao dịch trùng.
 
 ## 5. Cấu trúc JSON columns
 

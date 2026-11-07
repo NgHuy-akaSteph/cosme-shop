@@ -1,6 +1,13 @@
 """Pydantic schemas cho payment (SePay)"""
 
-from pydantic import BaseModel, ConfigDict, Field
+from typing import Any
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+
+def _to_int(value: Any) -> int:
+    """SePay co the gui so tien duoi dang chuoi -> ep ve int."""
+    return int(float(value))
 
 
 class SePayWebhookPayload(BaseModel):
@@ -26,7 +33,11 @@ class SePayWebhookPayload(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True, extra="ignore")
 
-    transaction_id: int = Field(..., alias="id")
+    # `id` là khoá giao dịch. Tài liệu webhook ghi là integer, nhưng API v2
+    # (`/v2/transactions`) trả `id` là UUID string → chấp nhận cả hai,
+    # chuẩn hoá về str. Khoá chống trùng thực sự dùng `reference_code`
+    # (xem `app.payment.transaction_key`).
+    transaction_id: str = Field(..., alias="id")
     gateway: str | None = None
     transaction_time: str | None = Field(None, alias="transactionDate")
     account_number: str | None = Field(None, alias="accountNumber")
@@ -38,3 +49,17 @@ class SePayWebhookPayload(BaseModel):
     amount_in: int = Field(..., alias="transferAmount")
     accumulated: int = Field(0, alias="accumulated")
     reference_code: str | None = Field(None, alias="referenceCode")
+
+    @field_validator("transaction_id", mode="before")
+    @classmethod
+    def _coerce_transaction_id(cls, value: Any) -> str:
+        """`id` có thể là int (webhook) hoặc UUID string (API v2) → str."""
+        return str(value)
+
+    @field_validator("amount_in", "accumulated", mode="before")
+    @classmethod
+    def _coerce_amount(cls, value: Any) -> int:
+        """Số tiền có thể được gửi dưới dạng chuỗi → int."""
+        if value is None or value == "":
+            return 0
+        return _to_int(value)

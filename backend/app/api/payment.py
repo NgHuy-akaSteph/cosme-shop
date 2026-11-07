@@ -10,10 +10,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_admin, get_current_user
+from app.core.config import settings
 from app.db.session import get_db
 from app.model.payment_webhook_log import PaymentWebhookLog
 from app.model.user import User
 from app.payment import get_provider
+from app.payment.transaction_key import build_transaction_key
 from app.service import order_service, payment_reconcile_service
 
 logger = logging.getLogger(__name__)
@@ -21,6 +23,18 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/payment", tags=["payment"])
 
 PROVIDER_NAME = "sepay"
+
+
+def _normalize_account(account: str | None) -> str:
+    """
+    Chuẩn hoá số tài khoản để so sánh.
+
+    Ngân hàng có thể gửi `1` thay vì `0000000001` ⇒ bỏ số 0 đầu trước khi so.
+    """
+    value = (account or "").strip()
+    if not value:
+        return ""
+    return value.lstrip("0") or "0"
 
 
 async def _record_webhook(
@@ -101,7 +115,13 @@ async def sepay_webhook(
 
     payload = payload_or_error
     raw_payload: dict[str, Any] = json.loads(raw_body or b"{}")
-    transaction_id = str(payload.transaction_id)
+    # Khoá chống trùng = `referenceCode` (mã tham chiếu từ ngân hàng) vì nó
+    # **ổn định giữa webhook và API v2** (2 nguồn dùng `id` khác nhau cho
+    # cùng 1 giao dịch). Xem `app.payment.transaction_key`.
+    transaction_id = build_transaction_key(
+        reference_code=payload.reference_code,
+        transaction_id=payload.transaction_id,
+    )
 
     logger.info(
         "SePay webhook: tx=%s type=%s amount=%s gateway=%s",
@@ -115,6 +135,28 @@ async def sepay_webhook(
     if payload.transfer_type != "in":
         await _record_webhook(
             db, PROVIDER_NAME, transaction_id, None, payload.amount_in, raw_payload, "ignored"
+        )
+        await db.commit()
+        return {"success": True}
+
+    # Giao dịch đến từ tài khoản khác => KHÔNG đánh paid cho đơn của shop.
+    # So sánh theo số (bỏ số 0 đầu) vì ngân hàng có thể gửi `1` thay vì `0000000001`.
+    expected_account = _normalize_account(settings.SEPAY_BANK_ACCOUNT)
+    received_account = _normalize_account(payload.account_number)
+    if expected_account and received_account and received_account != expected_account:
+        logger.warning(
+            "SePay: giao dich den tu tai khoan khong mong doi (nhan=%s, can=%s), bo qua.",
+            received_account,
+            expected_account,
+        )
+        await _record_webhook(
+            db,
+            PROVIDER_NAME,
+            transaction_id,
+            None,
+            payload.amount_in,
+            raw_payload,
+            "wrong_account",
         )
         await db.commit()
         return {"success": True}

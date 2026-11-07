@@ -1,5 +1,7 @@
 """Order API endpoints"""
 
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -11,6 +13,8 @@ from app.schemas.order import (
 )
 from app.service import order_service
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/api/orders", tags=["orders"])
 
 
@@ -21,7 +25,14 @@ def _build_sepay_qr_url(order) -> str | None:
 
     from app.payment import get_provider
 
-    link = get_provider("sepay").create_payment_link(order)
+    try:
+        link = get_provider("sepay").create_payment_link(order)
+    except ValueError as exc:
+        # Ma don khong khop mau ma SePay -> khong sinh QR sai (tranh mat tien).
+        logger.warning(
+            "Khong tao duoc QR cho don %s: %s", order.order_code, exc
+        )
+        return None
     return link.qr_url
 
 

@@ -437,8 +437,43 @@ sequenceDiagram
 - Idempotent: unique constraint `(provider, transaction_id)` trên bảng `payment_webhook_logs` → giao dịch trùng bị bỏ qua.
 - Đơn đã `cancelled` → KHÔNG đánh dấu paid, ghi log `cancelled` để hoàn tiền thủ công.
 - Thiếu tiền (`amount_in < total`) → ghi log `amount_mismatch`, giữ `unpaid`.
+- Giao dịch đến từ `accountNumber` ≠ `SEPAY_BANK_ACCOUNT` (so sánh đã bỏ số 0 đầu) → ghi log `wrong_account`, **không** đánh paid.
 - `transaction_id` được bảo đảm unique trên `orders` (partial unique index) → 1 giao dịch không gán cho 2 đơn.
-- Đối soát thủ công: `POST /api/payment/reconcile` quét SePay API v2 và đánh paid các đơn còn `unpaid`.
+  - **Khoá = `referenceCode`** (mã tham chiếu từ ngân hàng), **không** phải `id`.
+    Webhook gửi `id` kiểu int (`44843`) còn API v2 gửi `id` kiểu UUID (`37dcdb04-...`) cho **cùng 1 giao dịch**;
+    nếu dùng `id` thì 2 nguồn ghi 2 giá trị khác nhau ⇒ unique index vô hiệu ⇒ 1 giao dịch đánh paid 2 đơn.
+    Fallback `str(id)` khi ngân hàng không gửi `referenceCode`.
+- Đối soát thủ công: `POST /api/payment/reconcile` quét SePay API v2 (có phân trang) và đánh paid các đơn còn `unpaid`.
+  - **Cửa sổ ngày:** `transaction_date_from = hôm nay - N ngày`, `transaction_date_to = hôm nay + 1 ngày`.
+    `transaction_date_to` của SePay API v2 là **exclusive** — giao dịch trong chính ngày `to` không được trả về.
+    Đặt `to = hôm nay` ⇒ cửa sổ rỗng ⇒ `scanned = 0` ⇒ lớp an toàn thứ hai không bao giờ chạy.
+  - Đối soát dùng **cùng khoá** `reference_number` ⇒ webhook và đối soát không đánh paid trùng.
+
+### 6.3.1 QR VietQR
+
+- URL: `{SEPAY_QR_BASE_URL}?acc={STK}&bank={mã ngắn}&amount={số nguyên VND}&des={nội dung CK}`.
+- `amount` luôn ép về `int` — `Decimal` có thể render thành `430000.0` hoặc `1.00E+6`, VietQR chỉ nhận số nguyên.
+- `des` phải chứa mã đơn; một số ngân hàng bắt buộc có tiền tố (VietinBank cá nhân → `SEVQR`) → `SEPAY_QR_CONTENT_PREFIX`.
+  Thiếu tiền tố ⇒ SePay **không** đẩy giao dịch về webhook (mất tiền, đơn kẹt `unpaid`).
+
+### 6.3.2 Mã thanh toán (payment code pattern)
+
+SePay bóc tách `code` từ nội dung chuyển khoản theo *mẫu mã thanh toán* khai báo ở
+Công ty → Cấu hình chung → Cấu trúc mã thanh toán. Mẫu và format mã của shop **phải khớp nhau**,
+nếu không SePay không trích được `code` → (kèm `skip_if_no_code: true` + `prefix_filters`) không gọi webhook.
+
+| Khái niệm | Nguồn sự thật | Mặc định |
+|---|---|---|
+| Tiền tố mã thanh toán | `SEPAY_PAYMENT_CODE_PREFIX` | `ORD` |
+| Độ dài hậu tố (chữ số) | `SEPAY_PAYMENT_CODE_SUFFIX_LENGTH` | `12` |
+| Mẫu trên dashboard SePay | Công ty → Cấu hình chung → Cấu trúc mã thanh toán | tiền tố `ORD`, hậu tố 12 số |
+| `prefix_filters` (webhook) | Webhooks → Xác thực thanh toán | `["ORD"]` |
+
+- Mã sinh ra: `ORD` + `YYYYMMDD` + 4 số random → `ORD202611042239` (tổng 15 ký tự, ≤ `String(32)`).
+- Nguồn sự thật duy nhất trong code: `backend/app/payment/payment_code.py`
+  (`build_payment_code`, `payment_code_pattern`, `validate_payment_code`).
+- Fail-fast: `create_payment_link` raise `ValueError` nếu `order_code` không khớp mẫu ⇒ không sinh QR sai.
+- Tiền tố ngân hàng (`SEVQR`) ≠ tiền tố mã thanh toán (`ORD`); SePay quét toàn bộ nội dung nên vẫn thấy mã.
 
 ### 6.4 CORS
 

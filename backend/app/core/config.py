@@ -30,6 +30,17 @@ class Settings(BaseSettings):
     SEPAY_BANK_NAME: str = ""
     SEPAY_API_TOKEN: str = ""        # Bearer token cho SePay API v2 (doi soat)
     SEPAY_API_BASE_URL: str = "https://userapi.sepay.vn/v2"
+    # QR VietQR: base URL sinh anh QR
+    SEPAY_QR_BASE_URL: str = "https://vietqr.app/img"
+    # VietinBank (ca nhan / ho kinh doanh) BAT BUOC noi dung chuyen khoan chua
+    # chuoi "SEVQR" - thieu chuoi nay SePay KHONG day giao dich ve webhook.
+    # Bo trong neu ngan hang khong yeu cau (VD Vietcombank, ACB, MBBank).
+    SEPAY_QR_CONTENT_PREFIX: str = ""
+    # Ma thanh toan: tien to + do dai hau to (chu so) -> phai KHOP voi mau ma
+    # khai bao o SePay dashboard (Cong ty -> Cau hinh chung -> Cau truc ma thanh
+    # toan). Sai => SePay khong trich duoc `code` => KHONG gui webhook => mat tien.
+    SEPAY_PAYMENT_CODE_PREFIX: str = "ORD"
+    SEPAY_PAYMENT_CODE_SUFFIX_LENGTH: int = 12
 
     # Cloudinary
     CLOUDINARY_CLOUD_NAME: str = ""

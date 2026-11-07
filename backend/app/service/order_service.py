@@ -2,7 +2,6 @@
 
 import logging
 import random
-import re
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any
@@ -16,6 +15,7 @@ from app.model.order import Order
 from app.model.order_item import OrderItem
 from app.model.order_status_history import OrderStatusHistory
 from app.model.product import Product
+from app.payment.payment_code import build_payment_code
 
 logger = logging.getLogger(__name__)
 
@@ -32,11 +32,14 @@ def _get_main_image_url(product: Product) -> str | None:
 
 
 def generate_order_code() -> str:
-    """Tao ma don hang unique: ORD + YYYYMMDD + 4 so random."""
-    now = datetime.now(timezone.utc)
-    date_str = now.strftime("%Y%m%d")
-    random_str = str(random.randint(1000, 9999))
-    return f"ORD{date_str}{random_str}"
+    """
+    Tao ma don hang unique theo dinh dang ma thanh toan cua SePay.
+
+    Format: `<SEPAY_PAYMENT_CODE_PREFIX>` + `YYYYMMDD` + phan random, tong do dai
+    hau to = `SEPAY_PAYMENT_CODE_SUFFIX_LENGTH` chu so. Dinh dang nay phai khop
+    mau ma thanh toan khai bao tren dashboard SePay (xem `app.payment.payment_code`).
+    """
+    return build_payment_code()
 
 
 def generate_tracking_code() -> str:
@@ -287,8 +290,15 @@ async def create_order(
         from app.payment import get_provider
 
         provider = get_provider(payment_method)
-        link = provider.create_payment_link(order)
-        qr_url = link.qr_url
+        try:
+            link = provider.create_payment_link(order)
+            qr_url = link.qr_url
+        except ValueError as exc:
+            # Ma don khong khop mau ma SePay -> KHONG sinh QR sai (tranh mat tien).
+            # Don van duoc tao; admin can sua cau hinh mau ma roi sinh lai QR.
+            logger.error(
+                "Khong tao duoc QR cho don %s: %s", order.order_code, exc
+            )
 
     return order, qr_url
 

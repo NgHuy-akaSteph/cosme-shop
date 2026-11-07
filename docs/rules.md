@@ -495,10 +495,20 @@ export default api;
 
 - Validate: items không rỗng, variant tồn tại, stock đủ, phone VN format, address không rỗng.
 - Snapshot giá vào `order_items` (không tham chiếu động).
-- Order code format: `ORD` + `YYYYMMDD` + 4 số random (vd: `ORD202609200013`).
+- Order code format: `<SEPAY_PAYMENT_CODE_PREFIX>` (mặc định `ORD`) + `YYYYMMDD` + 4 số random
+  (vd: `ORD202609200013`) — tổng hậu tố = `SEPAY_PAYMENT_CODE_SUFFIX_LENGTH` (mặc định `12`) chữ số.
+  - **Phải khớp 100% với mẫu mã thanh toán khai báo trên dashboard SePay**
+    (Công ty → Cấu hình chung → Cấu trúc mã thanh toán: tiền tố `ORD`, hậu tố 12 số).
+    Lệch ⇒ SePay không trích được `code` ⇒ **không gửi webhook** ⇒ mất tiền, đơn kẹt `unpaid`.
+  - Nguồn sự thật duy nhất: `backend/app/payment/payment_code.py` (regex + validate + sinh mã).
+    Đổi format chỉ sửa config + cập nhật mẫu trên dashboard SePay.
 - Shipping fee mặc định `30.000đ`, miễn phí nếu `subtotal ≥ 500.000đ`.
 - Trừ stock trong transaction. Rollback nếu có lỗi bất kỳ.
-- SePay: trả QR URL `https://qr.sepay.vn/img?acc=...&bank=...&amount=...&des=ORDER_CODE`.
+- SePay: trả QR URL `https://vietqr.app/img?acc=...&bank=...&amount=...&des=ORDER_CODE`.
+  - `amount` luôn là số nguyên VND (ep `int` từ `Decimal`, tránh `430000.0` / `1.00E+6`).
+  - `des` có thể cần tiền tố bắt buộc (`SEVQR` với VietinBank cá nhân) → `SEPAY_QR_CONTENT_PREFIX`.
+    Tiền tố này **khác** tiền tố mã thanh toán (`ORD`) — SePay quét toàn bộ nội dung nên vẫn thấy mã.
+  - Fail-fast: `create_payment_link` raise nếu `order_code` không khớp mẫu SePay (không sinh QR sai).
 
 ### 9.5 Order state machine
 
@@ -515,10 +525,18 @@ delivered, cancelled = final
 
 ### 9.6 SePay webhook
 
-- Verify `Authorization: Apikey <SEPAY_KEY>`.
-- Extract `order_code` từ `content` bằng regex `ORD\d+` (hoặc `DH\d+` nếu user nhập cũ).
+- Verify HMAC-SHA256 (`X-SePay-Signature` + `X-SePay-Timestamp`) nếu có `SEPAY_WEBHOOK_SECRET`;
+  fallback `Authorization: Apikey <SEPAY_KEY>`.
+- Extract `order_code` từ `code`/`subAccount`/`content` bằng regex **động** dựng từ
+  `SEPAY_PAYMENT_CODE_PREFIX` + `SEPAY_PAYMENT_CODE_SUFFIX_LENGTH` (mặc định `ORD\d{12}`).
 - **Idempotent:** nếu đã `paid` → skip update.
 - Order không tồn tại → vẫn trả `{success: true}` để SePay không retry.
+- Khoá chống trùng = `referenceCode` (mã tham chiếu ngân hàng), fallback `str(id)`.
+  `id` khác nhau giữa webhook (int) và API v2 (UUID) ⇒ dùng `id` sẽ vô hiệu hoá unique index.
+- Sai tài khoản nhận (`accountNumber` ≠ `SEPAY_BANK_ACCOUNT`, so sánh đã bỏ số 0 đầu) → log `wrong_account`, KHÔNG đánh paid.
+- Đối soát (`POST /api/payment/reconcile`): quét SePay API v2 `/transactions` (có phân trang).
+  - `transaction_date_to` là **exclusive** ⇒ phải dùng `hôm nay + 1 ngày`, nếu không sẽ luôn `scanned = 0`.
+  - Dùng **cùng khoá** `reference_number` ⇒ không đánh paid trùng với webhook.
 
 ### 9.7 Admin tracking
 
