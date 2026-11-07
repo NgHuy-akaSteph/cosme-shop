@@ -35,7 +35,8 @@ interface Order {
   status: string;
   total: string;
   subtotal: string;
-  shipping_fee: string;
+  discount_code: string | null;
+  discount_amount: string;
   payment_method: string;
   payment_status: string;
   paid_at: string | null;
@@ -168,7 +169,14 @@ export default function OrderDetailPage() {
             
             <div style={{ marginTop: 16, textAlign: 'right' }}>
               <div><Text>Tạm tính: {formatPrice(order.subtotal)}</Text></div>
-              <div><Text>Phí vận chuyển: {formatPrice(order.shipping_fee)}</Text></div>
+              {Number(order.discount_amount) > 0 && (
+                <div>
+                  <Text type="danger">
+                    Giảm giá{order.discount_code ? ` (${order.discount_code})` : ''}: -
+                    {formatPrice(order.discount_amount)}
+                  </Text>
+                </div>
+              )}
               <div style={{ marginTop: 8 }}>
                 <Text strong style={{ fontSize: 16 }}>Tổng cộng: {formatPrice(order.total)}</Text>
               </div>

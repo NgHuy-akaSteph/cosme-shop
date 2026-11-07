@@ -470,8 +470,6 @@ async def test_delete_image_used_in_orders_keeps_cloudinary_asset(
         order_code="ORD-TEST-USED",
         status="pending",
         subtotal=100000,
-        shipping_fee=0,
-        discount=0,
         total=100000,
         payment_method="sepay",
         payment_status="unpaid",

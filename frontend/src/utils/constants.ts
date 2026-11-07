@@ -27,8 +27,8 @@ export const statusText: Record<string, string> = {
 };
 
 // Shipping
-export const SHIPPING_FREE_THRESHOLD = 500000;
-export const SHIPPING_FEE = 30000;
+// Chua trien khai phi ship: don hang luon free ship.
+// Khi backend them cot `shipping_fee`, dung gia tri tu API (khong hardcode o FE).
 
 // Bo loc theo nganh my pham
 export const SKIN_TYPES = [

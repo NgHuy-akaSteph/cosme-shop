@@ -1,10 +1,12 @@
+import { useEffect } from 'react';
 import { Form, Input, Button, Card, Typography, App } from 'antd';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { UserOutlined, MailOutlined, PhoneOutlined, LockOutlined } from '@ant-design/icons';
 import api from '../../api/axios';
 import type { ApiError } from '../../types/api';
 import { getErrorMessage } from '../../types/api';
 import { useAuthStore } from '../../store/authStore';
+import { useCurrentUser, currentUserKey } from '../../hooks/useCurrentUser';
 
 const { Title } = Typography;
 
@@ -26,6 +28,22 @@ export default function ProfilePage() {
   const { message } = App.useApp();
   const [form] = Form.useForm();
   const [passwordForm] = Form.useForm();
+  const queryClient = useQueryClient();
+
+  // Nguồn dữ liệu chuẩn từ server (không phải bản sao trong store).
+  const { data: currentUser } = useCurrentUser();
+
+  // `initialValues` chỉ áp dụng lần mount đầu nên phải set qua effect
+  // để form luôn khớp với dữ liệu server mới nhất.
+  useEffect(() => {
+    const source = currentUser ?? user;
+    if (!source) return;
+    form.setFieldsValue({
+      full_name: source.full_name,
+      phone: source.phone ?? '',
+      address: source.address ?? '',
+    });
+  }, [form, currentUser, user]);
 
   const updateMutation = useMutation({
     mutationFn: async (values: ProfilePayload) => {
@@ -34,13 +52,15 @@ export default function ProfilePage() {
     },
     onSuccess: (data) => {
       updateUser(data.data);
+      // Làm mới cache để trang Thanh toán prefill từ thông tin vừa sửa.
+      queryClient.invalidateQueries({ queryKey: currentUserKey });
       message.success('Cập nhật thành công!');
     },
     onError: (error: ApiError) => {
       message.error(getErrorMessage(error, 'Cập nhật thất bại'));
     },
   });
-  
+
   const changePasswordMutation = useMutation({
     mutationFn: async (values: ChangePasswordPayload) => {
       await api.post('/api/auth/change-password', values);
@@ -53,7 +73,7 @@ export default function ProfilePage() {
       message.error(getErrorMessage(error, 'Đổi mật khẩu thất bại'));
     },
   });
-  
+
   const onFinish = (values: ProfilePayload) => {
     updateMutation.mutate(values);
   };
@@ -61,26 +81,17 @@ export default function ProfilePage() {
   const onPasswordFinish = (values: ChangePasswordPayload) => {
     changePasswordMutation.mutate(values);
   };
-  
+
   return (
     <div style={{ maxWidth: 600, margin: '0 auto' }}>
       <Title level={2}>Tài khoản của tôi</Title>
-      
+
       <Card title="Thông tin cá nhân">
-        <Form
-          form={form}
-          layout="vertical"
-          initialValues={{
-            full_name: user?.full_name,
-            phone: user?.phone || '',
-            address: user?.address || '',
-          }}
-          onFinish={onFinish}
-        >
+        <Form form={form} layout="vertical" onFinish={onFinish}>
           <Form.Item label="Email">
             <Input prefix={<MailOutlined />} value={user?.email} disabled />
           </Form.Item>
-          
+
           <Form.Item
             name="full_name"
             label="Họ và tên"
@@ -88,30 +99,34 @@ export default function ProfilePage() {
           >
             <Input prefix={<UserOutlined />} placeholder="Nguyễn Văn A" />
           </Form.Item>
-          
-          <Form.Item name="phone" label="Số điện thoại">
+
+          <Form.Item
+            name="phone"
+            label="Số điện thoại"
+            extra="Dùng làm thông tin giao hàng mặc định khi thanh toán"
+          >
             <Input prefix={<PhoneOutlined />} placeholder="0901234567" />
           </Form.Item>
-          
-          <Form.Item name="address" label="Địa chỉ">
+
+          <Form.Item
+            name="address"
+            label="Địa chỉ"
+            extra="Dùng làm địa chỉ giao hàng mặc định khi thanh toán"
+          >
             <Input.TextArea
               placeholder="123 Đường ABC, Quận 1, TP. HCM"
               rows={3}
             />
           </Form.Item>
-          
+
           <Button type="primary" htmlType="submit" loading={updateMutation.isPending}>
             Lưu thay đổi
           </Button>
         </Form>
       </Card>
-      
+
       <Card title="Đổi mật khẩu" style={{ marginTop: 24 }}>
-        <Form
-          form={passwordForm}
-          layout="vertical"
-          onFinish={onPasswordFinish}
-        >
+        <Form form={passwordForm} layout="vertical" onFinish={onPasswordFinish}>
           <Form.Item
             name="old_password"
             label="Mật khẩu hiện tại"
@@ -122,7 +137,7 @@ export default function ProfilePage() {
               placeholder="Mật khẩu hiện tại"
             />
           </Form.Item>
-          
+
           <Form.Item
             name="new_password"
             label="Mật khẩu mới"
@@ -136,7 +151,7 @@ export default function ProfilePage() {
               placeholder="Mật khẩu mới"
             />
           </Form.Item>
-          
+
           <Button type="primary" htmlType="submit" loading={changePasswordMutation.isPending}>
             Đổi mật khẩu
           </Button>

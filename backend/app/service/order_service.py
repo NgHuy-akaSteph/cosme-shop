@@ -17,6 +17,7 @@ from app.model.order_item import OrderItem
 from app.model.order_status_history import OrderStatusHistory
 from app.model.product import Product
 from app.payment.payment_code import build_payment_code
+from app.service import discount_service
 from app.service import product_stock
 
 logger = logging.getLogger(__name__)
@@ -75,9 +76,9 @@ def generate_tracking_code() -> str:
     return f"TRK{random.randint(100000, 999999)}"
 
 
-# Shipping fee rules
-SHIPPING_FEE = Decimal("30000")  # 30,000 VND
-FREE_SHIPPING_THRESHOLD = Decimal("500000")  # Free ship khi subtotal >= 500,000
+# Chua trien khai phi ship / discount: tong don hang = tong tien hang.
+# Khi can them, them cot moi (`shipping_fee` / `discount`) + migration Alembic,
+# va sua cong thuc `total` o `create_order` - noi duy nhat tinh tien don.
 
 
 async def get_order_by_id(db: AsyncSession, order_id: int) -> Order | None:
@@ -182,6 +183,7 @@ async def create_order(
     shipping_address: str,
     payment_method: str,
     note: str | None = None,
+    coupon_code: str | None = None,
 ) -> tuple[Order, dict | None]:
     """
     Tao don hang moi.
@@ -274,11 +276,26 @@ async def create_order(
         else:
             product.stock -= qty
     
-    # Calculate shipping fee
-    shipping_fee = Decimal("0") if subtotal >= FREE_SHIPPING_THRESHOLD else SHIPPING_FEE
-    
-    # Calculate total
-    total = subtotal + shipping_fee
+    # Tong don hang = tong tien hang - giam gia.
+    # Chi server tinh giam gia: client chi gui `coupon_code` (khong gui so tien).
+    discount_code: str | None = None
+    discount_amount = Decimal("0")
+
+    if coupon_code:
+        coupon, discount_amount, reason = await discount_service.validate_coupon(
+            db, coupon_code, subtotal
+        )
+        if coupon is None:
+            raise ValueError(reason)
+        discount_code = coupon.code
+
+        # Tang luot dung ATOMIC trong cung transaction voi don hang.
+        # Neu het luot -> rollback don (raise => transaction rollback).
+        consumed = await discount_service.consume_coupon(db, coupon.id)
+        if not consumed:
+            raise ValueError("Mã giảm giá đã hết lượt sử dụng")
+
+    total = subtotal - discount_amount
     
     # Generate order code
     order_code = generate_order_code()
@@ -291,8 +308,8 @@ async def create_order(
         order_code=order_code,
         status="pending",
         subtotal=subtotal,
-        shipping_fee=shipping_fee,
-        discount=Decimal("0"),
+        discount_code=discount_code,
+        discount_amount=discount_amount,
         total=total,
         payment_method=payment_method,
         payment_status="unpaid",
@@ -545,8 +562,8 @@ def order_to_dict(order: Order) -> dict[str, Any]:
         "order_code": order.order_code,
         "status": order.status,
         "subtotal": str(order.subtotal),
-        "shipping_fee": str(order.shipping_fee),
-        "discount": str(order.discount),
+        "discount_code": order.discount_code,
+        "discount_amount": str(order.discount_amount),
         "total": str(order.total),
         "payment_method": order.payment_method,
         "payment_status": order.payment_status,

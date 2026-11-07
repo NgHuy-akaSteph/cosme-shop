@@ -60,7 +60,7 @@ export default function SiteFooter() {
       <Divider />
       <div style={{ textAlign: 'center' }}>
         <Text type="secondary" style={{ fontSize: 13 }}>
-          © {new Date().getFullYear()} Cosme Shop. Giao hàng toàn quốc — Freeship từ 500.000đ.
+          © {new Date().getFullYear()} Cosme Shop. Giao hàng toàn quốc — Miễn phí vận chuyển.
         </Text>
       </div>
     </Footer>

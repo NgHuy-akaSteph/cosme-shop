@@ -1,11 +1,35 @@
 """User service - business logic"""
 
+from typing import Any
+
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import hash_password, verify_password
 from app.model.user import User
 from app.schemas.user import UserUpdate
+
+
+def user_to_dict(user: User) -> dict[str, Any]:
+    """
+    Serialize user thanh cong ro (khong bao gom `password_hash`).
+
+    Dung chung cho register / login / GET /me / PATCH /me de moi noi tra ve
+    cung mot hinh dang du lieu - trong do co `phone` va `address` (thong tin
+    giao hang mac dinh) ma FE can de prefill form thanh toan.
+    """
+    return {
+        "id": user.id,
+        "email": user.email,
+        "full_name": user.full_name,
+        "phone": user.phone,
+        "address": user.address,
+        "avatar_url": user.avatar_url,
+        "role": user.role,
+        "is_active": user.is_active,
+        "created_at": user.created_at,
+        "updated_at": user.updated_at,
+    }
 
 
 async def get_user_by_id(db: AsyncSession, user_id: int) -> User | None:

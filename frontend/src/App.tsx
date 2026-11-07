@@ -28,6 +28,7 @@ import AdminProducts from './pages/admin/Products';
 import AdminOrders from './pages/admin/Orders';
 import AdminCategories from './pages/admin/Categories';
 import AdminBrands from './pages/admin/Brands';
+import AdminCoupons from './pages/admin/Coupons';
 import AdminUsers from './pages/admin/Users';
 
 // Protected Route Component
@@ -92,6 +93,7 @@ function App() {
                 <Route path="orders" element={<AdminOrders />} />
                 <Route path="categories" element={<AdminCategories />} />
                 <Route path="brands" element={<AdminBrands />} />
+                <Route path="coupons" element={<AdminCoupons />} />
                 <Route path="users" element={<AdminUsers />} />
               </Route>
 

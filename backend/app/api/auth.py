@@ -4,10 +4,14 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
-from app.schemas.auth import UserRegister, UserLogin, ChangePassword, TokenResponse, AuthResponse
-from app.schemas.user import UserResponse, UserUpdate
+from app.schemas.auth import UserRegister, UserLogin, ChangePassword, AuthResponse
+from app.schemas.user import UserUpdate
 from app.service.auth_service import register_user, authenticate_user, create_user_token
-from app.service.user_service import change_user_password, update_user_profile
+from app.service.user_service import (
+    change_user_password,
+    update_user_profile,
+    user_to_dict,
+)
 from app.api.deps import get_current_user
 from app.model.user import User
 
@@ -32,12 +36,7 @@ async def register(
         
         return AuthResponse(
             data={
-                "user": {
-                    "id": user.id,
-                    "email": user.email,
-                    "full_name": user.full_name,
-                    "role": user.role,
-                },
+                "user": user_to_dict(user),
                 "access_token": token,
                 "token_type": "bearer",
             },
@@ -73,12 +72,7 @@ async def login(
     
     return AuthResponse(
         data={
-            "user": {
-                "id": user.id,
-                "email": user.email,
-                "full_name": user.full_name,
-                "role": user.role,
-            },
+            "user": user_to_dict(user),
             "access_token": token,
             "token_type": "bearer",
         },
@@ -95,17 +89,7 @@ async def get_me(
     Can co token xac thuc.
     """
     return AuthResponse(
-        data={
-            "id": current_user.id,
-            "email": current_user.email,
-            "full_name": current_user.full_name,
-            "phone": current_user.phone,
-            "address": current_user.address,
-            "avatar_url": current_user.avatar_url,
-            "role": current_user.role,
-            "is_active": current_user.is_active,
-            "created_at": current_user.created_at,
-        },
+        data=user_to_dict(current_user),
         message="OK",
     )
 
@@ -121,20 +105,9 @@ async def update_me(
     Can co token xac thuc.
     """
     user = await update_user_profile(db, current_user, data)
-    
+
     return AuthResponse(
-        data={
-            "id": user.id,
-            "email": user.email,
-            "full_name": user.full_name,
-            "phone": user.phone,
-            "address": user.address,
-            "avatar_url": user.avatar_url,
-            "role": user.role,
-            "is_active": user.is_active,
-            "created_at": user.created_at,
-            "updated_at": user.updated_at,
-        },
+        data=user_to_dict(user),
         message="Cập nhật thành công",
     )
 

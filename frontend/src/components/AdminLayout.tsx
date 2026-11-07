@@ -9,6 +9,7 @@ import {
   TeamOutlined,
   LogoutOutlined,
   ShopOutlined,
+  TagOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
@@ -51,6 +52,11 @@ export default function AdminLayout() {
       key: '/admin/brands',
       icon: <ShopOutlined />,
       label: <Link to="/admin/brands">Thương hiệu</Link>,
+    },
+    {
+      key: '/admin/coupons',
+      icon: <TagOutlined />,
+      label: <Link to="/admin/coupons">Mã giảm giá</Link>,
     },
     {
       key: '/admin/users',

@@ -207,6 +207,8 @@ Bao gồm:
 
 ```text
 subtotal = SUM (variant.price || product.price) * qty
+discount_amount = compute_discount(coupon, subtotal)   # 0 nếu không có coupon
+total = subtotal - discount_amount
 ```
 
 ### 3.4 Module Checkout & Order
@@ -245,15 +247,22 @@ subtotal = SUM (variant.price || product.price) * qty
      - `order_code`: `ORD` + timestamp + random.
      - `status = "pending"`.
      - `payment_status = "unpaid"`.
-     - Tính `subtotal`, `shipping_fee`, `total`.
+     - Tính `subtotal`, `discount_amount` (nếu có coupon), `total` (= `subtotal` - `discount_amount`).
   3. Tạo `order_items`.
   4. Insert `order_status_history` (`pending`).
   5. Nếu `sepay` → tạo QR + mã CK.
   6. Trả về order.
-- **Shipping fee:** mặc định `30.000đ`, miễn phí nếu `subtotal > 500.000đ`.
+- **Phí vận chuyển:** chưa triển khai — mọi đơn đều miễn phí vận chuyển.
+- **Mã giảm giá (coupon):**
+  - Input: `coupon_code` (optional) — client **chỉ gửi mã**, không gửi số tiền giảm.
+  - Server validate: tồn tại, `is_active`, chưa hết hạn, còn lượt, đơn đủ ngưỡng tối thiểu.
+  - Server tính `discount_amount` → `total = subtotal - discount_amount`.
+  - Snapshot `discount_code` + `discount_amount` vào order.
 - **Edge cases:**
   - Stock không đủ → 400 `OUT_OF_STOCK`.
   - Product inactive → 400.
+  - Coupon không hợp lệ → 400 kèm lý do.
+  - Coupon hết lượt (race) → rollback đơn, 400.
   - Transaction rollback nếu lỗi giữa chừng.
 
 **Xem đơn**
@@ -378,7 +387,8 @@ Hiển thị theo thứ tự thời gian ngược (mới nhất trên cùng).
 | Không xóa cứng | Xóa sản phẩm = `is_active = false`, không DELETE |
 | Stock âm | Không cho phép, rollback transaction |
 | Order code | Unique, format `ORD` + timestamp + random |
-| Free shipping | `subtotal >= 500.000đ` |
+| Phí vận chuyển | Chưa triển khai — mọi đơn đều miễn phí vận chuyển |
+| Discount / coupon | `total = subtotal - discount_amount`. Client chỉ gửi `coupon_code`, server tự tính. Ràng buộc: `is_active`, `expires_at`, `max_uses`, `min_order_amount` |
 | Cancel order | Chỉ khi `pending` hoặc `confirmed`, hoàn stock |
 | Idempotent webhook | SePay có thể gọi nhiều lần, chỉ update 1 lần (unique `(provider, transaction_id)` trên `payment_webhook_logs`) |
 | 1 giao dịch = 1 đơn | `orders.transaction_id` có partial unique index — chống gán trùng |
@@ -421,6 +431,8 @@ stateDiagram-v2
 | `POST /api/orders` | -- | OK | OK |
 | `PATCH /api/admin/orders/{id}/status` | -- | -- | OK |
 | `GET /api/wishlist` | -- | OK | OK |
+| `POST /api/coupons/validate` | -- | OK | OK |
+| `GET/POST/PATCH/DELETE /api/admin/coupons` | -- | -- | OK |
 | `POST /api/ai/routine` | OK | OK | OK |
 
 ## 7. Kịch bản demo chính

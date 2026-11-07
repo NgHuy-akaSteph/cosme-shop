@@ -34,6 +34,8 @@ class OrderBase(BaseModel):
     shipping_address: str = Field(..., min_length=5)
     payment_method: str = Field(..., pattern="^(cod|sepay)$")
     note: str | None = None
+    # Ma giam gia (optional). Server tu validate + tinh tien giam.
+    coupon_code: str | None = Field(None, max_length=32)
 
 
 class OrderCreate(OrderBase):
@@ -59,8 +61,8 @@ class OrderResponse(BaseModel):
     order_code: str
     status: str
     subtotal: Decimal
-    shipping_fee: Decimal
-    discount: Decimal
+    discount_code: str | None = None
+    discount_amount: Decimal
     total: Decimal
     payment_method: str
     payment_status: str

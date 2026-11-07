@@ -2,7 +2,7 @@ import { Card, Table, Button, Empty, Typography, InputNumber, Popconfirm, Row, C
 import { DeleteOutlined, ShoppingOutlined } from '@ant-design/icons';
 import { Link, useNavigate } from 'react-router-dom';
 import { useCartStore, type CartItem } from '../../store/cartStore';
-import { formatPrice, SHIPPING_FEE, SHIPPING_FREE_THRESHOLD } from '../../utils/constants';
+import { formatPrice } from '../../utils/constants';
 import { colors } from '../../theme';
 
 const { Title, Text } = Typography;
@@ -87,9 +87,7 @@ export default function CartPage() {
     );
   }
   
-  const subtotal = getTotal();
-  const shippingFee = subtotal >= SHIPPING_FREE_THRESHOLD ? 0 : SHIPPING_FEE;
-  const total = subtotal + shippingFee;
+  const total = getTotal();
   
   return (
     <div>
@@ -111,22 +109,6 @@ export default function CartPage() {
         <Col xs={24} lg={8}>
           <Card>
             <Title level={4}>Tổng cộng</Title>
-            
-            <div style={{ marginBottom: 16 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                <Text>Tạm tính:</Text>
-                <Text>{formatPrice(subtotal)}</Text>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                <Text>Phí vận chuyển:</Text>
-                <Text>{shippingFee === 0 ? 'Miễn phí' : formatPrice(shippingFee)}</Text>
-              </div>
-              {shippingFee > 0 && (
-                <Text type="secondary" style={{ fontSize: 12 }}>
-                  Miễn phí vận chuyển khi đơn hàng từ 500,000 đ
-                </Text>
-              )}
-            </div>
             
             <div style={{
               display: 'flex',

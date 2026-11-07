@@ -173,6 +173,8 @@ def create_app() -> FastAPI:
     from app.api.wishlist import router as wishlist_router
     from app.api.payment import router as payment_router
     from app.api.upload import router as upload_router
+    from app.api.coupons import router as coupons_router
+    from app.api.coupons import admin_router as admin_coupons_router
 
     app.include_router(auth_router)
     app.include_router(users_router)
@@ -185,6 +187,8 @@ def create_app() -> FastAPI:
     app.include_router(wishlist_router)
     app.include_router(payment_router)
     app.include_router(upload_router)
+    app.include_router(coupons_router)
+    app.include_router(admin_coupons_router)
     
     # Health check
     @app.get("/health")

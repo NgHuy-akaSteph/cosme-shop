@@ -40,6 +40,7 @@ from app.model.order_item import OrderItem  # noqa: F401, E402
 from app.model.order_status_history import OrderStatusHistory  # noqa: F401, E402
 from app.model.payment_webhook_log import PaymentWebhookLog  # noqa: F401, E402
 from app.model.wishlist import Wishlist  # noqa: F401, E402
+from app.model.coupon import Coupon  # noqa: F401, E402
 
 
 # Dependency để lấy DB session trong các API route

@@ -399,7 +399,8 @@ export default api;
 | `brands` | `id`, `name`, `slug` UNIQUE, `logo_url`, `description`, `created_at`, `updated_at` |
 | `products` | `id`, `name`, `slug` UNIQUE, `description`, `price`, `sale_price`, `stock`, `category_id` FK, `brand_id` FK, `skin_types` JSON, `concerns` JSON, `key_ingredients` JSON, `free_from` JSON, `variants` JSON, `sold_count`, `rating_avg`, `rating_count`, `is_active`, timestamps |
 | `product_images` | `id`, `product_id` FK CASCADE, `public_id` UNIQUE, `secure_url`, `alt_text`, `width`, `height`, `format`, `position`, `is_main`, timestamps |
-| `orders` | `id`, `user_id` FK, `order_code` UNIQUE, `status`, `subtotal`, `shipping_fee`, `discount`, `total`, `payment_method`, `payment_status`, `paid_at`, `transaction_id`, `shipping_name`, `shipping_phone`, `shipping_address`, `tracking_code`, `carrier`, `note`, timestamps |
+| `orders` | `id`, `user_id` FK, `order_code` UNIQUE, `status`, `subtotal`, `discount_code`, `discount_amount`, `total`, `payment_method`, `payment_status`, `paid_at`, `transaction_id`, `shipping_name`, `shipping_phone`, `shipping_address`, `tracking_code`, `carrier`, `note`, timestamps |
+| `coupons` | `id`, `code` UNIQUE, `discount_type` (`percent`\|`fixed`), `discount_value`, `min_order_amount`, `max_discount`, `max_uses`, `used_count`, `expires_at`, `is_active`, `description`, timestamps |
 | `order_items` | `id`, `order_id` FK CASCADE, `product_id` FK, `product_name`, `product_price`, `product_image`, `variant_info` JSON, `qty`, `subtotal` |
 | `order_status_history` | `id`, `order_id` FK CASCADE, `status`, `note`, `created_by` FK, `created_at` |
 | `wishlists` | `id`, `user_id` FK CASCADE, `product_id` FK CASCADE, `created_at`, UNIQUE(`user_id`, `product_id`) |
@@ -489,6 +490,9 @@ export default api;
 - Email format hợp lệ, unique.
 - Password tối thiểu 6 ký tự, hash bằng bcrypt cost 12.
 - `is_active = false` → không cho đăng nhập (403 `ACCOUNT_LOCKED`).
+- **Response login/register phải chứa `phone`/`address`** (dùng chung `user_to_dict` trong
+  `app.service.user_service`) — FE cần các trường này để prefill form giao hàng ở Checkout.
+  Không bao giờ trả `password_hash`.
 
 ### 9.2 Product
 
@@ -507,6 +511,19 @@ export default api;
 
 - Validate: items không rỗng, variant tồn tại, stock đủ, phone VN format, address không rỗng.
 - Snapshot giá vào `order_items` (không tham chiếu động).
+- **Prefill thông tin giao hàng (FE):**
+  - Nguồn sự thật duy nhất: `GET /api/auth/me` qua hook `useCurrentUser` (TanStack Query, `queryKey: ['current-user']`).
+    Response login/register cũng phải trả `phone`/`address` (dùng chung `user_to_dict` trong `app.service.user_service`)
+    ⇒ store đồng bộ ngay sau khi đăng nhập.
+  - Chế độ nhận hàng: `self` (giao cho tôi → điền `full_name`/`phone`/`address` từ hồ sơ) hoặc `other`
+    (giao cho người khác → xoá sạch 3 trường, bắt nhập tay).
+  - Prefill **không khóa form** — người dùng luôn có thể sửa.
+  - Chỉ điền `shipping_phone` khi số điện thoại khớp `^0\d{9,10}$`; số không hợp lệ trong hồ sơ bị bỏ qua
+    (tránh mang lỗi từ hồ sơ sang form).
+  - Không ghi đè dữ liệu người dùng đã gõ tay khi hồ sơ về muộn (cờ `dirty` trong `useShippingAddressPrefill`).
+  - Lưu ngược hồ sơ: chỉ khi `mode = 'self'` **và** checkbox "Lưu thông tin này vào hồ sơ" được tick
+    ⇒ `PATCH /api/auth/me` sau khi đặt hàng thành công (best-effort, lỗi lưu không được chặn đơn hàng).
+    Đơn "giao cho người khác" **không** được ghi đè hồ sơ.
 - Order code format: `<SEPAY_PAYMENT_CODE_PREFIX>` (mặc định `ORD`) + `YYYYMMDD` + 4 số random
   (vd: `ORD202609200013`) — tổng hậu tố = `SEPAY_PAYMENT_CODE_SUFFIX_LENGTH` (mặc định `12`) chữ số.
   - **Phải khớp 100% với mẫu mã thanh toán khai báo trên dashboard SePay**
@@ -514,7 +531,13 @@ export default api;
     Lệch ⇒ SePay không trích được `code` ⇒ **không gửi webhook** ⇒ mất tiền, đơn kẹt `unpaid`.
   - Nguồn sự thật duy nhất: `backend/app/payment/payment_code.py` (regex + validate + sinh mã).
     Đổi format chỉ sửa config + cập nhật mẫu trên dashboard SePay.
-- Shipping fee mặc định `30.000đ`, miễn phí nếu `subtotal ≥ 500.000đ`.
+- Chưa có phí vận chuyển: mọi đơn đều miễn phí ship. Khi triển khai, thêm cột `shipping_fee` + migration Alembic và sửa `total` trong `app.service.order_service.create_order` (nơi duy nhất tính tiền đơn).
+- **Mã giảm giá (coupon):**
+  - Bảng `coupons` (không có bảng `coupon_usages` — đếm lượt dùng bằng atomic UPDATE `used_count`).
+  - `total = subtotal - discount_amount`. Chỉ server tính tiền giảm: client **chỉ gửi `coupon_code`**, không gửi `discount_amount` (nếu không user sửa DevTools sẽ giảm giá tuỳ ý).
+  - `orders.discount_code` + `orders.discount_amount` là **snapshot** → admin sửa/xoá coupon sau không ảnh hưởng lịch sử đơn cũ.
+  - Ngưỡng: `min_order_amount`, `max_discount` (chặn trần cho percent), `max_uses`, `expires_at`, `is_active`.
+  - Nguồn sự thật duy nhất: `backend/app/service/discount_service.compute_discount` + `consume_coupon`.
 - Trừ stock trong transaction. Rollback nếu có lỗi bất kỳ.
 - SePay: trả QR URL `https://vietqr.app/img?acc=...&bank=...&amount=...&des=ORDER_CODE`.
   - `amount` luôn là số nguyên VND (ep `int` từ `Decimal`, tránh `430000.0` / `1.00E+6`).

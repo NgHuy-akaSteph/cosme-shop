@@ -55,6 +55,7 @@ async def create_order(
             shipping_address=data.shipping_address,
             payment_method=data.payment_method,
             note=data.note,
+            coupon_code=data.coupon_code,
         )
         
         return {

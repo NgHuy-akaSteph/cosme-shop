@@ -16,7 +16,7 @@ Tài liệu liên quan:
 - **ORM:** SQLAlchemy 2.x async + Alembic migration.
 - **Schema duy nhất:** `public` (đã loại bỏ schema `ai`).
 - **Tên database:** `cosme_shop`.
-- **Số bảng MVP:** 9 bảng nghiệp vụ.
+- **Số bảng MVP:** 10 bảng nghiệp vụ.
 - **KHÔNG dùng** extension `pgvector` (đã loại bỏ — AI gọi Gemini API trực tiếp, không có embedding).
 - **DB GUI dev:** Adminer ở port `8080`.
 
@@ -47,6 +47,20 @@ erDiagram
         text error
         timestamptz created_at
     }
+
+    coupons {
+        int id PK
+        string code UK
+        string discount_type
+        int discount_value
+        int min_order_amount
+        int max_discount
+        int max_uses
+        int used_count
+        timestamptz expires_at
+        bool is_active
+        text description
+    }
 ```
 
 Quan hệ chính:
@@ -55,6 +69,7 @@ Quan hệ chính:
 - 1 order có nhiều order_items và nhiều order_status_history.
 - 1 category / 1 brand chứa nhiều products.
 - 1 product xuất hiện trong nhiều order_items (qua snapshot) và nhiều wishlists.
+- `coupons` không có FK — `orders` snapshot `discount_code` + `discount_amount`.
 
 ## 3. Cấu hình & kết nối
 
@@ -96,7 +111,7 @@ Cấu hình trong [backend/app/db/session.py](../../backend/app/db/session.py):
 docker compose exec postgres psql -U admin -d cosme_shop
 ```
 
-## 4. Chi tiết 9 bảng
+## 4. Chi tiết 10 bảng
 
 ### 4.1 `users`
 
@@ -242,9 +257,9 @@ Mục đích: đơn hàng của user.
 | `order_code` | `VARCHAR(32)` | No | -- | UNIQUE | Format mã thanh toán SePay: `ORD` + `YYYYMMDD` + 4 số random (tổng 15 ký tự). Cấu hình qua `SEPAY_PAYMENT_CODE_PREFIX` + `SEPAY_PAYMENT_CODE_SUFFIX_LENGTH` |
 | `status` | `VARCHAR(20)` | No | `'pending'` | | State machine — xem §6 |
 | `subtotal` | `NUMERIC(12,0)` | No | `0` | | Tổng tiền hàng |
-| `shipping_fee` | `NUMERIC(12,0)` | No | `30000` | | |
-| `discount` | `NUMERIC(12,0)` | No | `0` | | |
-| `total` | `NUMERIC(12,0)` | No | `0` | | `subtotal + shipping_fee - discount` |
+| `discount_code` | `VARCHAR(32)` | Yes | NULL | | Mã giảm giá đã dùng (snapshot — coupon có thể bị xoá sau) |
+| `discount_amount` | `NUMERIC(12,0)` | No | `0` | | Số tiền giảm đã áp dụng (snapshot) |
+| `total` | `NUMERIC(12,0)` | No | `0` | | `subtotal - discount_amount` (chưa có phí ship) |
 | `payment_method` | `VARCHAR(10)` | No | -- | CHECK (`'cod'` \| `'sepay'`) | |
 | `payment_status` | `VARCHAR(10)` | No | `'unpaid'` | | `unpaid` \| `paid` |
 | `paid_at` | `TIMESTAMPTZ` | Yes | NULL | | Set khi SePay webhook |
@@ -328,7 +343,31 @@ Quan hệ ngược: không có FK (log tồn tại độc lập với đơn đ�
 
 Migration: `backend/alembic/versions/20261031_0900_c1d2e3f4a5b6_add_payment_webhook_logs.py`.
 
-### 4.10 Partial unique index cho `orders.transaction_id`
+### 4.10 `coupons`
+
+Mục đích: mã giảm giá cho đơn hàng. Thiết kế tối giản — **không có bảng `coupon_usages`**.
+
+| Cột | Kiểu SQL | Null | Default | Ràng buộc | Ghi chú |
+|---|---|---|---|---|---|
+| `id` | `SERIAL` | No | auto | PK | |
+| `code` | `VARCHAR(32)` | No | -- | UNIQUE | Mã giảm giá, không phân biệt hoa/thường (normalize khi ghi) |
+| `discount_type` | `VARCHAR(10)` | No | `'percent'` | | `percent` \| `fixed` |
+| `discount_value` | `INTEGER` | No | -- | | `percent` → 10 (=10%), `fixed` → 50000 (=50.000đ) |
+| `min_order_amount` | `INTEGER` | No | `0` | | Đơn tối thiểu để dùng mã (0 = không giới hạn) |
+| `max_discount` | `INTEGER` | Yes | NULL | | Trần giảm tối đa (chặn cho `percent`) |
+| `max_uses` | `INTEGER` | Yes | NULL | | Số lần tối đa được dùng (NULL = không giới hạn) |
+| `used_count` | `INTEGER` | No | `0` | | Số lần đã dùng — tăng bằng atomic UPDATE |
+| `expires_at` | `TIMESTAMPTZ` | Yes | NULL | | Thời hạn (NULL = không hết hạn) |
+| `is_active` | `BOOLEAN` | No | `true` | | Tắt coupon = không dùng được |
+| `description` | `TEXT` | Yes | NULL | | Mô tả cho admin |
+| `created_at` | `TIMESTAMPTZ` | No | `now()` | | |
+| `updated_at` | `TIMESTAMPTZ` | No | `now()` ON UPDATE | | |
+
+**Quan hệ ngược:** không có FK. `orders.discount_code` + `orders.discount_amount` là **snapshot** — admin xoá coupon sau không ảnh hưởng lịch sử đơn cũ.
+
+Migration: `backend/alembic/versions/20261107_1400_b2c3d4e5f6a7_add_coupons_and_order_discount.py`.
+
+### 4.11 Partial unique index cho `orders.transaction_id`
 
 Migration cùng file trên tạo partial unique index:
 
@@ -343,7 +382,7 @@ Giá trị lưu = `referenceCode` (mã tham chiếu ngân hàng) chứ không ph
 webhook gửi `id` kiểu int (`44843`) còn API v2 gửi `id` kiểu UUID (`37dcdb04-...`) cho **cùng 1 giao dịch**.
 Dùng `id` sẽ khiến 2 nguồn ghi 2 giá trị khác nhau ⇒ index này không chặn được giao dịch trùng.
 
-### 4.11 Bảo đảm constraint chống trùng (migration `f4a5b6c7d8e9`)
+### 4.12 Bảo đảm constraint chống trùng (migration `f4a5b6c7d8e9`)
 
 Migration `backend/alembic/versions/20261107_0920_f4a5b6c7d8e9_ensure_payment_uniqueness.py`
 tạo lại 2 index trên bằng `CREATE UNIQUE INDEX IF NOT EXISTS` (idempotent):
@@ -495,6 +534,7 @@ Trích từ [rules.md §7](rules.md):
 | `orders` | `transaction_id` (partial unique, WHERE NOT NULL) |
 | `payment_webhook_logs` | `(provider, transaction_id)` |
 | `wishlists` | `(user_id, product_id)` |
+| `coupons` | `code` |
 
 ## 7. Indexes đề xuất
 

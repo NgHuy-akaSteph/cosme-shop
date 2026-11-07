@@ -24,9 +24,8 @@ async def test_create_order_cod_success(client, login, product):
     data = res.json()["data"]
     order = data["order"]
 
-    # subtotal = sale_price * qty = 400000 * 2 = 800000 -> freeship
+    # subtotal = sale_price * qty = 400000 * 2 = 800000; total = subtotal
     assert float(order["subtotal"]) == 800000.0
-    assert float(order["shipping_fee"]) == 0.0
     assert float(order["total"]) == 800000.0
     assert order["payment_status"] == "unpaid"
     assert order["status"] == "pending"

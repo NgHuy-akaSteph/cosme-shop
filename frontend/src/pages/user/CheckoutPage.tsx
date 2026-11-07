@@ -1,30 +1,22 @@
-import { useMutation } from '@tanstack/react-query';
-import { Form, Input, Button, Card, Typography, Radio, App, Row, Col } from 'antd';
+import { Form, Button, Card, Typography, App, Row, Col, Checkbox } from 'antd';
 import { useNavigate } from 'react-router-dom';
-import { useCartStore } from '../../store/cartStore';
-import api from '../../api/axios';
 import { useState } from 'react';
-import { formatPrice, SHIPPING_FEE, SHIPPING_FREE_THRESHOLD } from '../../utils/constants';
-import type { ApiError } from '../../types/api';
-import { getErrorMessage } from '../../types/api';
+import { useCartStore } from '../../store/cartStore';
 import QrPaymentModal from '../../components/QrPaymentModal';
-import { colors } from '../../theme';
+import RecipientSelector from '../../components/checkout/RecipientSelector';
+import ShippingAddressFields from '../../components/checkout/ShippingAddressFields';
+import OrderSummary from '../../components/checkout/OrderSummary';
+import PaymentSection from '../../components/checkout/PaymentSection';
+import { useCurrentUser } from '../../hooks/useCurrentUser';
+import { useShippingAddressPrefill } from '../../hooks/useShippingAddressPrefill';
+import { useCheckoutOrder } from '../../hooks/useCheckoutOrder';
+import {
+  useSaveShippingToProfile,
+  toProfilePayload,
+} from '../../hooks/useSaveShippingToProfile';
+import type { CheckoutFormValues, RecipientMode } from '../../types/checkout';
 
 const { Title, Text } = Typography;
-
-interface CheckoutFormValues {
-  shipping_name: string;
-  shipping_phone: string;
-  shipping_address: string;
-  note?: string;
-}
-
-interface CheckoutResponse {
-  data?: {
-    order?: { id: number };
-    qr_url?: string | null;
-  };
-}
 
 export default function CheckoutPage() {
   const navigate = useNavigate();
@@ -32,57 +24,69 @@ export default function CheckoutPage() {
   const { message } = App.useApp();
   const [form] = Form.useForm();
   const [paymentMethod, setPaymentMethod] = useState('cod');
+  const [recipientMode, setRecipientMode] = useState<RecipientMode>('self');
+  const [saveToProfile, setSaveToProfile] = useState(true);
   const [showQrModal, setShowQrModal] = useState(false);
   const [qrUrl, setQrUrl] = useState<string | null>(null);
   const [orderId, setOrderId] = useState<number | undefined>(undefined);
 
+  // Ma giam gia: server la noi duy nhat tinh tien giam, FE chi hien thi preview.
+  const [couponCode, setCouponCode] = useState<string | null>(null);
+  const [discountAmount, setDiscountAmount] = useState(0);
+
+  // Ho so nguoi dung - nguon du lieu prefill thong tin giao hang.
+  const { data: profile } = useCurrentUser();
+  const { markDirty } = useShippingAddressPrefill({
+    form,
+    profile,
+    mode: recipientMode,
+  });
+  const saveProfileMutation = useSaveShippingToProfile();
+
   const subtotal = getTotal();
-  const shippingFee = subtotal >= SHIPPING_FREE_THRESHOLD ? 0 : SHIPPING_FEE;
-  const total = subtotal + shippingFee;
+  const total = subtotal - discountAmount;
 
-  const checkoutMutation = useMutation({
-    mutationFn: async (values: CheckoutFormValues) => {
-      const orderItems = items.map((item) => ({
-        product_id: item.product_id,
-        variant_id: item.variant_id,
-        qty: item.qty,
-      }));
+  /** Luu thong tin giao hang vao ho so (chi khi giao cho chinh minh). */
+  const persistShippingToProfile = (values: CheckoutFormValues) => {
+    if (recipientMode !== 'self' || !saveToProfile) return;
+    const payload = toProfilePayload(values);
+    if (payload) {
+      saveProfileMutation.mutate(payload);
+    }
+  };
 
-      const res = await api.post<CheckoutResponse>('/api/orders', {
-        items: orderItems,
-        shipping_name: values.shipping_name,
-        shipping_phone: values.shipping_phone,
-        shipping_address: values.shipping_address,
-        payment_method: paymentMethod,
-        note: values.note,
-      });
-
-      return res.data;
-    },
-    onSuccess: (data) => {
-      const createdOrderId = data.data?.order?.id;
-      const createdQrUrl = data.data?.qr_url ?? null;
-
-      // COD: thanh toan khi nhan hang -> xoa gio ngay
-      if (paymentMethod === 'cod') {
-        clearCart();
-        message.success('Đặt hàng thành công!');
-        navigate(createdOrderId ? `/orders/${createdOrderId}` : '/orders');
-        return;
-      }
-
-      // SePay: giu gio cho den khi xac nhanh thanh toan
-      setQrUrl(createdQrUrl);
-      setOrderId(createdOrderId);
-      setShowQrModal(true);
-    },
-    onError: (error: ApiError) => {
-      message.error(getErrorMessage(error, 'Đặt hàng thất bại'));
+  const checkoutMutation = useCheckoutOrder({
+    items,
+    paymentMethod,
+    couponCode,
+    onSuccess: (values) => {
+      // Luu thong tin giao hang da sua vao ho so (best-effort, khong block don).
+      persistShippingToProfile(values);
     },
   });
 
+  const handleCheckoutSuccess = (data: { data?: { order?: { id: number }; qr_url?: string | null } }) => {
+    const createdOrderId = data.data?.order?.id;
+    const createdQrUrl = data.data?.qr_url ?? null;
+
+    // COD: thanh toan khi nhan hang -> xoa gio ngay
+    if (paymentMethod === 'cod') {
+      clearCart();
+      message.success('Đặt hàng thành công!');
+      navigate(createdOrderId ? `/orders/${createdOrderId}` : '/orders');
+      return;
+    }
+
+    // SePay: giu gio cho den khi xac nhanh thanh toan
+    setQrUrl(createdQrUrl);
+    setOrderId(createdOrderId);
+    setShowQrModal(true);
+  };
+
   const onFinish = (values: CheckoutFormValues) => {
-    checkoutMutation.mutate(values);
+    checkoutMutation.mutate(values, {
+      onSuccess: handleCheckoutSuccess,
+    });
   };
 
   if (items.length === 0) {
@@ -100,53 +104,38 @@ export default function CheckoutPage() {
       <Row gutter={[24, 24]}>
         <Col xs={24} lg={16}>
           <Card title="Thông tin giao hàng">
-            <Form form={form} layout="vertical" onFinish={onFinish}>
-              <Form.Item
-                name="shipping_name"
-                label="Họ và tên"
-                rules={[{ required: true, message: 'Vui lòng nhập họ tên!' }]}
-              >
-                <Input placeholder="Nguyễn Văn A" />
-              </Form.Item>
+            <Form
+              form={form}
+              layout="vertical"
+              onFinish={onFinish}
+              onValuesChange={markDirty}
+            >
+              <RecipientSelector value={recipientMode} onChange={setRecipientMode} />
 
-              <Form.Item
-                name="shipping_phone"
-                label="Số điện thoại"
-                rules={[
-                  { required: true, message: 'Vui lòng nhập số điện thoại!' },
-                  { pattern: /^0\d{9,10}$/, message: 'Số điện thoại không hợp lệ!' },
-                ]}
-              >
-                <Input placeholder="0901234567" />
-              </Form.Item>
+              <ShippingAddressFields isOtherRecipient={recipientMode === 'other'} />
 
-              <Form.Item
-                name="shipping_address"
-                label="Địa chỉ"
-                rules={[{ required: true, message: 'Vui lòng nhập địa chỉ!' }]}
-              >
-                <Input.TextArea rows={3} placeholder="123 Đường ABC, Quận 1, TP. Hồ Chí Minh" />
-              </Form.Item>
+              {recipientMode === 'self' && (
+                <Form.Item style={{ marginBottom: 16 }}>
+                  <Checkbox
+                    checked={saveToProfile}
+                    onChange={(e) => setSaveToProfile(e.target.checked)}
+                  >
+                    Lưu thông tin này vào hồ sơ để lần sau điền nhanh hơn
+                  </Checkbox>
+                </Form.Item>
+              )}
 
-              <Form.Item name="note" label="Ghi chú (tùy chọn)">
-                <Input.TextArea rows={2} placeholder="Giao giờ hành chính" />
-              </Form.Item>
-
-              <Title level={5}>Phương thức thanh toán</Title>
-
-              <Radio.Group
-                value={paymentMethod}
-                onChange={(e) => setPaymentMethod(e.target.value)}
-                style={{ marginBottom: 24 }}
-              >
-                <Radio value="cod">
-                  <Text>Thanh toán khi nhận hàng (COD)</Text>
-                </Radio>
-                <br />
-                <Radio value="sepay">
-                  <Text>Thanh toán qua SePay (Chuyển khoản ngân hàng)</Text>
-                </Radio>
-              </Radio.Group>
+              <PaymentSection
+                paymentMethod={paymentMethod}
+                onPaymentMethodChange={setPaymentMethod}
+                subtotal={subtotal}
+                appliedCoupon={couponCode}
+                discountAmount={discountAmount}
+                onCouponChange={(code, amount) => {
+                  setCouponCode(code);
+                  setDiscountAmount(amount);
+                }}
+              />
 
               <Button
                 type="primary"
@@ -162,53 +151,13 @@ export default function CheckoutPage() {
         </Col>
 
         <Col xs={24} lg={8}>
-          <Card>
-            <Title level={4}>Đơn hàng của bạn</Title>
-
-            <div style={{ marginBottom: 16 }}>
-              {items.map((item) => (
-                <div
-                  key={`${item.product_id}-${item.variant_id}`}
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    marginBottom: 8,
-                  }}
-                >
-                  <Text>
-                    {item.name}
-                    {item.variant_name && ` (${item.variant_name})`}
-                    <Text type="secondary"> x{item.qty}</Text>
-                  </Text>
-                  <Text>{formatPrice(item.price * item.qty)}</Text>
-                </div>
-              ))}
-            </div>
-
-            <div style={{ borderTop: `1px solid ${colors.dividerDefault}`, paddingTop: 16 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                <Text>Tạm tính:</Text>
-                <Text>{formatPrice(subtotal)}</Text>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                <Text>Phí vận chuyển:</Text>
-                <Text>{shippingFee === 0 ? 'Miễn phí' : formatPrice(shippingFee)}</Text>
-              </div>
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  paddingTop: 8,
-                  borderTop: `1px solid ${colors.dividerDefault}`,
-                }}
-              >
-                <Text strong>Tổng:</Text>
-                <Text strong style={{ fontSize: 18, color: colors.primary }}>
-                  {formatPrice(total)}
-                </Text>
-              </div>
-            </div>
-          </Card>
+          <OrderSummary
+            items={items}
+            subtotal={subtotal}
+            appliedCoupon={couponCode}
+            discountAmount={discountAmount}
+            total={total}
+          />
         </Col>
       </Row>
 

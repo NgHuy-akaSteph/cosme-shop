@@ -197,8 +197,8 @@ erDiagram
         string order_code UK
         string status
         numeric subtotal
-        numeric shipping_fee
-        numeric discount
+        string discount_code
+        numeric discount_amount
         numeric total
         string payment_method
         string payment_status
@@ -252,6 +252,19 @@ erDiagram
         string status
         text error
         timestamptz created_at
+    }
+
+    coupons {
+        int id PK
+        string code UK
+        string discount_type
+        int discount_value
+        int min_order_amount
+        int max_discount
+        int max_uses
+        int used_count
+        timestamptz expires_at
+        bool is_active
     }
 ```
 
@@ -323,6 +336,12 @@ erDiagram
 | Orders | POST | `/api/orders/{id}/cancel` | User |
 | Orders | GET | `/api/admin/orders` | Admin |
 | Orders | PATCH | `/api/admin/orders/{id}/status` | Admin |
+| Coupons | POST | `/api/coupons/validate` | User (preview mã giảm giá) |
+| Coupons | GET | `/api/admin/coupons` | Admin |
+| Coupons | GET | `/api/admin/coupons/{id}` | Admin |
+| Coupons | POST | `/api/admin/coupons` | Admin |
+| Coupons | PATCH | `/api/admin/coupons/{id}` | Admin |
+| Coupons | DELETE | `/api/admin/coupons/{id}` | Admin |
 | Users | GET | `/api/admin/users` | Admin (phân trang server-side) |
 | Users | PATCH | `/api/admin/users/{id}/toggle-active` | Admin |
 | Dashboard | GET | `/api/admin/stats` | Admin (thống kê tổng quan) |

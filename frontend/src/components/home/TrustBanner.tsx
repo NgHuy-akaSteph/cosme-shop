@@ -17,7 +17,7 @@ const TRUST_POINTS = [
   },
   {
     icon: <TruckOutlined />,
-    title: 'Freeship từ 500k',
+    title: 'Miễn phí vận chuyển',
     desc: 'Giao hàng toàn quốc 2-4 ngày làm việc',
   },
   {

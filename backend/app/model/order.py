@@ -25,9 +25,11 @@ class Order(Base, IdMixin, TimestampMixin):
     status: Mapped[str] = mapped_column(String(20), default="pending", nullable=False)
     
     # Tien
+    # Chua trien khai phi ship => `total` = `subtotal` - `discount_amount`.
+    # Khi can them, them cot moi + migration, khong sua lai cong thuc o FE.
     subtotal: Mapped[Decimal] = mapped_column(Numeric(12, 0), default=Decimal("0"), nullable=False)
-    shipping_fee: Mapped[Decimal] = mapped_column(Numeric(12, 0), default=Decimal("30000"), nullable=False)
-    discount: Mapped[Decimal] = mapped_column(Numeric(12, 0), default=Decimal("0"), nullable=False)
+    discount_code: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    discount_amount: Mapped[Decimal] = mapped_column(Numeric(12, 0), default=Decimal("0"), nullable=False)
     total: Mapped[Decimal] = mapped_column(Numeric(12, 0), default=Decimal("0"), nullable=False)
     
     # Thanh toan

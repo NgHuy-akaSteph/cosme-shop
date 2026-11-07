@@ -36,6 +36,7 @@ async def normal_user(db_session):
         password_hash=hash_password("user123"),
         full_name="User Test",
         phone="0900123456",
+        address="123 Đường ABC, Quận 1, TP. Hồ Chí Minh",
         role="user",
         is_active=True,
     )
