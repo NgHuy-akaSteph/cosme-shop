@@ -25,7 +25,7 @@ export default function CheckoutPage() {
   const [form] = Form.useForm();
   const [paymentMethod, setPaymentMethod] = useState('cod');
   const [recipientMode, setRecipientMode] = useState<RecipientMode>('self');
-  const [saveToProfile, setSaveToProfile] = useState(true);
+  const [saveToProfile, setSaveToProfile] = useState(false);
   const [showQrModal, setShowQrModal] = useState(false);
   const [qrUrl, setQrUrl] = useState<string | null>(null);
   const [orderId, setOrderId] = useState<number | undefined>(undefined);
@@ -69,15 +69,19 @@ export default function CheckoutPage() {
     const createdOrderId = data.data?.order?.id;
     const createdQrUrl = data.data?.qr_url ?? null;
 
-    // COD: thanh toan khi nhan hang -> xoa gio ngay
+    // Đơn đã tạo thành công -> đơn đã lưu đủ snapshot `order_items`,
+    // giữ giỏ không còn giá trị và có thể gây tạo đơn trùng (đóng modal SePay
+    // chưa thanh toán rồi bấm "Đặt hàng" lần nữa). Xoá ngay cho cả COD và SePay.
+    clearCart();
+
+    // COD: thanh toán khi nhận hàng -> điều hướng thẳng sang đơn hàng
     if (paymentMethod === 'cod') {
-      clearCart();
       message.success('Đặt hàng thành công!');
       navigate(createdOrderId ? `/orders/${createdOrderId}` : '/orders');
       return;
     }
 
-    // SePay: giu gio cho den khi xac nhanh thanh toan
+    // SePay: mở modal QR để người dùng chuyển khoản
     setQrUrl(createdQrUrl);
     setOrderId(createdOrderId);
     setShowQrModal(true);
@@ -89,9 +93,34 @@ export default function CheckoutPage() {
     });
   };
 
+  // Modal QR phải render ĐỘC LẬP với nhánh "giỏ hàng trống": sau khi tạo đơn
+  // SePay, giỏ đã được xoá nên `items.length === 0` — nếu return sớm thì modal
+  // không bao giờ hiện, người dùng không thể chuyển khoản.
+  const qrModal = (
+    <QrPaymentModal
+      visible={showQrModal}
+      qrUrl={qrUrl}
+      orderId={orderId}
+      onClose={() => {
+        setShowQrModal(false);
+        if (orderId) navigate(`/orders/${orderId}`);
+      }}
+      onPaid={() => {
+        clearCart();
+        message.success('Thanh toán thành công!');
+      }}
+      onContinue={() => {
+        setShowQrModal(false);
+        if (orderId) navigate(`/orders/${orderId}`);
+        else navigate('/orders');
+      }}
+    />
+  );
+
   if (items.length === 0) {
     return (
       <div style={{ textAlign: 'center', padding: '60px 0' }}>
+        {qrModal}
         <Text>Giỏ hàng trống</Text>
       </div>
     );
@@ -161,24 +190,7 @@ export default function CheckoutPage() {
         </Col>
       </Row>
 
-      <QrPaymentModal
-        visible={showQrModal}
-        qrUrl={qrUrl}
-        orderId={orderId}
-        onClose={() => {
-          setShowQrModal(false);
-          if (orderId) navigate(`/orders/${orderId}`);
-        }}
-        onPaid={() => {
-          clearCart();
-          message.success('Thanh toán thành công!');
-        }}
-        onContinue={() => {
-          setShowQrModal(false);
-          if (orderId) navigate(`/orders/${orderId}`);
-          else navigate('/orders');
-        }}
-      />
+      {qrModal}
     </div>
   );
 }

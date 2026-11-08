@@ -1,6 +1,7 @@
 import { Tabs, Row, Col } from 'antd';
 import ProductCard, { ProductCardSkeleton } from '../ProductCard';
 import { useProducts } from '../../hooks/useProducts';
+import { useAddToCartFromCard } from '../../hooks/useAddToCartFromCard';
 
 interface ProductGridProps {
   sort: string;
@@ -8,6 +9,7 @@ interface ProductGridProps {
 
 function ProductGrid({ sort }: ProductGridProps) {
   const { data, isLoading } = useProducts({ sort, size: 8 });
+  const handleAddToCart = useAddToCartFromCard();
 
   if (isLoading) {
     return (
@@ -25,7 +27,7 @@ function ProductGrid({ sort }: ProductGridProps) {
     <Row gutter={[16, 16]}>
       {(data?.data ?? []).map((product) => (
         <Col key={product.id} xs={12} sm={8} md={6} lg={6}>
-          <ProductCard product={product} />
+          <ProductCard product={product} onAddToCart={handleAddToCart} />
         </Col>
       ))}
     </Row>

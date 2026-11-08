@@ -24,6 +24,7 @@ import type { ApiError } from '../types/api';
 import { getErrorMessage } from '../types/api';
 import type { Product } from '../types/product';
 import ProductCard from '../components/ProductCard';
+import { useAddToCartFromCard } from '../hooks/useAddToCartFromCard';
 import { colors } from '../theme';
 
 const { Title, Text, Paragraph } = Typography;
@@ -33,6 +34,7 @@ export default function ProductDetailPage() {
   const navigate = useNavigate();
   const { user } = useAuthStore();
   const { addItem } = useCartStore();
+  const handleAddToCard = useAddToCartFromCard();
   const { message } = App.useApp();
 
   const [selectedVariant, setSelectedVariant] = useState<string | undefined>(undefined);
@@ -305,7 +307,7 @@ export default function ProductDetailPage() {
           <Row gutter={[16, 16]}>
             {similarData.map((item) => (
               <Col key={item.id} xs={12} sm={8} md={6} lg={6}>
-                <ProductCard product={item} />
+                <ProductCard product={item} onAddToCart={handleAddToCard} />
               </Col>
             ))}
           </Row>

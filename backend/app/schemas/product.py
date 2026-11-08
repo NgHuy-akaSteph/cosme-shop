@@ -6,6 +6,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
+from app.core.money import MoneyDecimal
 from app.schemas.product_image import ProductImageRead
 
 
@@ -73,8 +74,8 @@ class ProductBase(BaseModel):
     name: str
     slug: str | None = None
     description: str | None = None
-    price: Decimal
-    sale_price: Decimal | None = None
+    price: MoneyDecimal
+    sale_price: MoneyDecimal | None = None
     stock: int = 0
     category_id: int
     brand_id: int
@@ -100,8 +101,8 @@ class ProductUpdate(BaseModel):
     name: str | None = None
     slug: str | None = None
     description: str | None = None
-    price: Decimal | None = None
-    sale_price: Decimal | None = None
+    price: MoneyDecimal | None = None
+    sale_price: MoneyDecimal | None = None
     stock: int | None = None
     category_id: int | None = None
     brand_id: int | None = None

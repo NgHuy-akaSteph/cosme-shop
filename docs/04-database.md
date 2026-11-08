@@ -495,7 +495,7 @@ Admin UI (`pages/admin/Products.tsx`) dùng `Form.List` để nhập; `id` để
   (admin nhập tay `product.stock = 0` trong khi variants còn hàng → sản phẩm hiện "Hết hàng").
 - Logic tập trung tại `app/service/product_stock.py` (`recompute_stock`, `effective_stock`).
 - API trả `stock` = `effective_stock(product)` → luôn khớp với tổng stock variants.
-- Admin UI: field "Stock" **disabled** khi sản phẩm có biến thể (BE tự tính lại).
+- Admin UI: field "Tồn kho" **disabled** khi sản phẩm có biến thể (BE tự tính lại).
 
 ### 5.6 `order_items.variant_info`
 

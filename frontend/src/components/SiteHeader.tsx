@@ -41,7 +41,7 @@ export default function SiteHeader() {
   };
 
   const handleLogout = () => {
-    logout();
+    logout({ clearCart: true });
     navigate('/');
   };
 

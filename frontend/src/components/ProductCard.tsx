@@ -20,14 +20,16 @@ export default function ProductCard({ product, onAddToCart }: ProductCardProps) 
       ? Math.round((1 - Number(product.sale_price) / Number(product.price)) * 100)
       : 0;
 
+  const productUrl = `/products/${product.id}`;
+
   return (
-    <Link to={`/products/${product.id}`} style={{ display: 'block', height: '100%' }}>
-      <Card
-        hoverable
-        variant="borderless"
-        styles={{ body: { padding: 16 } }}
-        style={{ height: '100%', borderRadius: 16, overflow: 'hidden' }}
-        cover={
+    <Card
+      hoverable
+      variant="borderless"
+      styles={{ body: { padding: 16 } }}
+      style={{ height: '100%', borderRadius: 16, overflow: 'hidden' }}
+      cover={
+        <Link to={productUrl} style={{ display: 'block' }}>
           <div
             style={{
               height: 220,
@@ -67,8 +69,10 @@ export default function ProductCard({ product, onAddToCart }: ProductCardProps) 
               </Tag>
             )}
           </div>
-        }
-      >
+        </Link>
+      }
+    >
+      <Link to={productUrl} style={{ display: 'block' }}>
         <Text type="secondary" style={{ fontSize: 12 }}>
           {product.brand?.name}
         </Text>
@@ -103,25 +107,21 @@ export default function ProductCard({ product, onAddToCart }: ProductCardProps) 
             </Text>
           )}
         </div>
+      </Link>
 
-        {onAddToCart && (
-          <Button
-            type="primary"
-            block
-            icon={<ShoppingCartOutlined />}
-            style={{ marginTop: 12 }}
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              onAddToCart(product);
-            }}
-            disabled={product.stock === 0}
-          >
-            Thêm vào giỏ
-          </Button>
-        )}
-      </Card>
-    </Link>
+      {onAddToCart && (
+        <Button
+          type="primary"
+          block
+          icon={<ShoppingCartOutlined />}
+          style={{ marginTop: 12 }}
+          onClick={() => onAddToCart(product)}
+          disabled={product.stock === 0}
+        >
+          Thêm vào giỏ
+        </Button>
+      )}
+    </Card>
   );
 }
 

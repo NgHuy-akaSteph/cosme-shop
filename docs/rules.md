@@ -187,6 +187,12 @@ Mọi endpoint (thành công lẫn lỗi) phải trả theo format thống nhấ
 - Mọi input dùng Pydantic schema, không nhận `dict` raw.
 - Response schema có `model_config = ConfigDict(from_attributes=True)`.
 - Email dùng `EmailStr`, phone dùng regex VN, số dùng `Decimal` cho tiền tệ.
+- **Tiền tệ serialize bằng chuỗi PHẢNG — KHÔNG dùng ký hiệu mũ.**
+  Cột `NUMERIC` khi đọc từ Postgres trả `Decimal('1.8E+5')`; `str(Decimal)` → `"1.8E+5"`
+  → FE `InputNumber` không parse được → form Admin hiển thị sai ("1E").
+  - Dùng `format_money()` (`app/core/money.py`) thay cho `str()` mọi khi serialize tiền.
+  - Trong Pydantic schema, khai báo field tiền bằng `MoneyDecimal` (serialize tự động theo `format_money`).
+  - Giá trị trả về là **chuỗi số nguyên** (vd `"290000"`), FE parse bằng `Number()`.
 
 ### 4.7 Ví dụ router chuẩn
 
@@ -503,9 +509,17 @@ export default api;
 
 ### 9.3 Cart (FE only)
 
-- Zustand + `localStorage`.
+- Zustand + `localStorage` (key `cart-storage`).
 - KHÔNG có endpoint BE cho cart.
 - Check stock khi checkout (BE mới kiểm tra).
+- Khoá dòng giỏ = `product_id` + `variant_id` (cùng sản phẩm khác phân loại là 2 dòng).
+- Số lượng 1 dòng giới hạn `[1, 99]` — khớp `backend/app/schemas/order.py` (`le=99`).
+- **Xoá giỏ khi user chủ động đăng xuất** (`logout({ clearCart: true })`).
+  Khi token hết hạn (401) **giữ nguyên** giỏ — không mất giỏ chỉ vì hết phiên.
+- Giỏ được **đồng bộ giá & tồn kho** từ `GET /api/products/{id}` khi mở trang giỏ
+  (giá trong giỏ chỉ là preview; server luôn tính lại lúc tạo đơn).
+- Giỏ được xoá **ngay khi đơn đã tạo thành công** (cả COD lẫn SePay) — đơn đã lưu đủ
+  snapshot `order_items`, giữ giỏ chỉ gây rủi ro tạo đơn trùng.
 
 ### 9.4 Checkout
 
@@ -523,6 +537,7 @@ export default api;
   - Không ghi đè dữ liệu người dùng đã gõ tay khi hồ sơ về muộn (cờ `dirty` trong `useShippingAddressPrefill`).
   - Lưu ngược hồ sơ: chỉ khi `mode = 'self'` **và** checkbox "Lưu thông tin này vào hồ sơ" được tick
     ⇒ `PATCH /api/auth/me` sau khi đặt hàng thành công (best-effort, lỗi lưu không được chặn đơn hàng).
+    Checkbox **mặc định không tick** — người dùng phải tự bật nếu muốn lưu.
     Đơn "giao cho người khác" **không** được ghi đè hồ sơ.
 - Order code format: `<SEPAY_PAYMENT_CODE_PREFIX>` (mặc định `ORD`) + `YYYYMMDD` + 4 số random
   (vd: `ORD202609200013`) — tổng hậu tố = `SEPAY_PAYMENT_CODE_SUFFIX_LENGTH` (mặc định `12`) chữ số.

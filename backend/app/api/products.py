@@ -6,6 +6,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.money import format_money
 from app.db.session import get_db
 from app.api.deps import get_current_user, get_current_admin
 from app.model.user import User
@@ -44,8 +45,8 @@ def _product_to_dict(p) -> dict[str, Any]:
         "name": p.name,
         "slug": p.slug,
         "description": p.description,
-        "price": str(p.price),
-        "sale_price": str(p.sale_price) if p.sale_price else None,
+        "price": format_money(p.price),
+        "sale_price": format_money(p.sale_price) if p.sale_price else None,
         # Stock hien thi: san pham co bien the -> tong stock variants
         # (gia tri dan xuat, xem service/product_stock.py)
         "stock": product_stock.effective_stock(p),

@@ -1,11 +1,12 @@
 """Pydantic schemas cho order"""
 
 from datetime import datetime
-from decimal import Decimal
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
+
+from app.core.money import MoneyDecimal
 
 class OrderItemBase(BaseModel):
     """Base schema cho order item"""
@@ -19,11 +20,11 @@ class OrderItemResponse(BaseModel):
     id: int
     product_id: int
     product_name: str
-    product_price: Decimal
+    product_price: MoneyDecimal
     product_image: str | None = None
     variant_info: dict[str, Any] | None = None
     qty: int
-    subtotal: Decimal
+    subtotal: MoneyDecimal
 
 
 class OrderBase(BaseModel):
@@ -60,10 +61,10 @@ class OrderResponse(BaseModel):
     user_id: int
     order_code: str
     status: str
-    subtotal: Decimal
+    subtotal: MoneyDecimal
     discount_code: str | None = None
-    discount_amount: Decimal
-    total: Decimal
+    discount_amount: MoneyDecimal
+    total: MoneyDecimal
     payment_method: str
     payment_status: str
     paid_at: str | None = None
@@ -105,5 +106,5 @@ class OrderCodeResponse(BaseModel):
     """Schema response ma don (SePay)"""
     order_code: str
     qr_url: str | None = None
-    amount: Decimal
+    amount: MoneyDecimal
     message: str = "OK"

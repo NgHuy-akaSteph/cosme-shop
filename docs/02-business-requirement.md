@@ -188,7 +188,14 @@ Bao gồm:
 
 ### 3.3 Module Giỏ hàng
 
-- **Lưu trữ:** Zustand + `localStorage` (FE).
+- **Lưu trữ:** Zustand + `localStorage` (FE), key `cart-storage`.
+- **Khoá dòng giỏ:** `product_id` + `variant_id`.
+- **Thao tác:** thêm (cộng dồn nếu trùng key) · sửa số lượng (1–99) · xoá dòng · xoá tất cả.
+- **Đồng bộ giá & tồn kho** từ server khi mở trang giỏ; hiển thị cảnh báo khi hết hàng /
+  ngừng bán / số lượng vượt tồn kho.
+- **Xoá giỏ khi đăng xuất** (chủ động). Token hết hạn (401) → giữ giỏ.
+- Giỏ guest và giỏ đã đăng nhập dùng chung key `localStorage` → hành vi "mua trước,
+  đăng nhập sau" hoạt động sẵn, **không cần** bước merge riêng.
 
 **Thêm vào giỏ**
 
@@ -196,11 +203,14 @@ Bao gồm:
 - **Xử lý:**
   - Nếu đã có trong giỏ → tăng `qty`.
   - Nếu chưa có → thêm mới với `qty`.
+  - `qty` bị clamp về `[1, 99]` (khớp validation backend).
   - Không cần check stock ở FE (check khi checkout).
+  - Sản phẩm **có phân loại** phải chọn variant ở trang chi tiết (BE chặn khi tạo đơn
+    mà thiếu `variant_id`) → nút thêm giỏ từ card sẽ điều hướng sang trang chi tiết.
 
 **Cập nhật/Xóa**
 
-- Update `qty` → cập nhật state.
+- Update `qty` → cập nhật state (clamp `[1, 99]`; `qty <= 0` → xoá dòng).
 - Remove → filter ra khỏi mảng.
 
 **Tính tổng tiền**
@@ -396,7 +406,7 @@ Hiển thị theo thứ tự thời gian ngược (mới nhất trên cùng).
 | Xóa giá khuyến mãi | `PATCH /api/products/{id}` với `sale_price: null` → xoá giá KM (nullable fields) |
 | sold_count | Tăng theo `qty` khi đơn chuyển `delivered` |
 | JWT expire | 1 ngày, không refresh |
-| Giỏ hàng guest | Lưu `localStorage`, merge khi login (tùy chọn) |
+| Giỏ hàng guest | Lưu `localStorage` dùng chung key `cart-storage` → đăng nhập sau vẫn giữ giỏ (không cần merge). Xoá giỏ khi chủ động đăng xuất; token hết hạn → giữ giỏ. |
 
 ## 5. Trạng thái đơn hàng
 

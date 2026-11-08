@@ -114,6 +114,34 @@ async def test_regular_user_cannot_create_product(client, login):
 
 
 @pytest.mark.asyncio
+async def test_product_price_serialized_without_exponent(client, product):
+    """Gia phai la chuoi PHANG (vd "500000"), khong phai kho hoc "5E+5".
+
+    `str(Decimal)` tu Postgres sinh "5E+5" -> FE `InputNumber` khong parse
+    duoc -> hien thi sai ("1E") trong form Admin.
+    """
+    res = await client.get(f"/api/products/{product.id}")
+    assert res.status_code == 200, res.text
+
+    data = res.json()["data"]
+    for field in ("price", "sale_price"):
+        value = data[field]
+        assert isinstance(value, str), f"{field} phai la chuoi, nhan {type(value)}"
+        assert "E" not in value.upper(), f"{field} chua ky hieu mu: {value}"
+        assert float(value) == float(data[field])  # parse duoc thanh so
+
+
+@pytest.mark.asyncio
+async def test_product_list_price_serialized_without_exponent(client, product):
+    res = await client.get("/api/products")
+    assert res.status_code == 200, res.text
+
+    item = next(p for p in res.json()["data"] if p["id"] == product.id)
+    assert item["price"] == "500000"
+    assert item["sale_price"] == "400000"
+
+
+@pytest.mark.asyncio
 async def test_admin_users_total_is_correct(client, login, admin_user, normal_user):
     headers = await login("admin@example.com", "admin123")
     res = await client.get("/api/admin/users?size=1", headers=headers)

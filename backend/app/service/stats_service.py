@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.money import format_money
 from app.model.order import Order
 from app.model.order_item import OrderItem
 from app.model.product import Product
@@ -55,7 +56,7 @@ async def get_dashboard_stats(db: AsyncSession, days: int = 7) -> dict:
         .order_by(func.date(Order.created_at))
     )
     revenue_by_day = [
-        {"day": str(row.day), "revenue": str(row.revenue), "orders": row.orders}
+        {"day": str(row.day), "revenue": format_money(row.revenue), "orders": row.orders}
         for row in daily_rows.all()
     ]
 
@@ -73,7 +74,7 @@ async def get_dashboard_stats(db: AsyncSession, days: int = 7) -> dict:
         .limit(5)
     )
     top_products = [
-        {"name": r.product_name, "qty": r.qty, "revenue": str(r.revenue)}
+        {"name": r.product_name, "qty": r.qty, "revenue": format_money(r.revenue)}
         for r in top_rows.all()
     ]
 
@@ -89,7 +90,7 @@ async def get_dashboard_stats(db: AsyncSession, days: int = 7) -> dict:
             "id": r.id,
             "name": r.name,
             "stock": r.stock,
-            "price": str(r.sale_price or r.price),
+            "price": format_money(r.sale_price or r.price),
         }
         for r in low_stock_rows.all()
     ]
@@ -101,8 +102,8 @@ async def get_dashboard_stats(db: AsyncSession, days: int = 7) -> dict:
 
     return {
         "total_orders": total_orders,
-        "total_revenue": str(revenue),
-        "pending_revenue": str(pending_revenue),
+        "total_revenue": format_money(revenue),
+        "pending_revenue": format_money(pending_revenue),
         "total_products": total_products,
         "total_users": total_users,
         "orders_by_status": orders_by_status,

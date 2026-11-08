@@ -31,6 +31,7 @@ import { colors } from '../../theme';
 import ProductImageManager from '../../components/admin/ProductImageManager';
 import ProductImageGalleryModal from '../../components/admin/ProductImageGalleryModal';
 import ProductStagedUploader from '../../components/admin/ProductStagedUploader';
+import PriceInputNumber from '../../components/admin/price-input-number';
 import type { PendingUpload } from '../../components/admin/ProductStagedUploader';
 import type { ProductImage, ProductVariant } from '../../types/product';
 
@@ -45,10 +46,11 @@ interface VariantFormRow {
 }
 
 interface AdminProduct {
-    id: number;
+  id: number;
   name: string;
-  price: number;
-  sale_price: number | null;
+  /** BE tra gia chuoi (vd "290000") - dung `toNumber` khi dua vao form. */
+  price: number | string;
+  sale_price: number | string | null;
   stock: number;
   is_active: boolean;
   description?: string | null;
@@ -145,8 +147,18 @@ function normalizeVariants(rows: VariantFormRow[] | undefined): ProductVariant[]
   return result;
 }
 
-function formatPrice(price: number): string {
-  return new Intl.NumberFormat('vi-VN').format(price) + ' đ';
+function formatPrice(price: number | string): string {
+  return new Intl.NumberFormat('vi-VN').format(Number(price)) + ' đ';
+}
+
+/**
+ * Chuyen gia tu BE (string "290000" hoac number) ve number cho form.
+ * BE luon tra chuoi phang (khong ky hieu mu) - `Number` an toan o moi truong.
+ */
+function toFormPrice(value: number | string | null | undefined): number | null {
+  if (value === null || value === undefined || value === '') return null;
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : null;
 }
 
 export default function AdminProducts() {
@@ -241,8 +253,8 @@ export default function AdminProducts() {
       setEditingProduct(product);
       form.setFieldsValue({
         name: product.name,
-        price: product.price,
-        sale_price: product.sale_price,
+        price: toFormPrice(product.price) ?? undefined,
+        sale_price: toFormPrice(product.sale_price),
         stock: product.stock,
         category_id: product.category_id,
         brand_id: product.brand_id,
@@ -254,7 +266,7 @@ export default function AdminProducts() {
         variants: (product.variants ?? []).map((v) => ({
           id: v.id,
           name: v.name,
-          price: v.price ?? null,
+          price: toFormPrice(v.price),
           stock: v.stock ?? 0,
         })),
       });
@@ -341,7 +353,7 @@ export default function AdminProducts() {
     {
       title: 'Giá',
       dataIndex: 'price',
-      render: (price: number, record: AdminProduct) =>
+      render: (price: number | string, record: AdminProduct) =>
         record.sale_price ? (
           <>
             <Text delete>{formatPrice(price)}</Text>
@@ -354,7 +366,7 @@ export default function AdminProducts() {
           <Text strong>{formatPrice(price)}</Text>
         ),
     },
-    { title: 'Stock', dataIndex: 'stock' },
+    { title: 'Tồn kho', dataIndex: 'stock' },
     {
       title: 'Biến thể',
       dataIndex: 'variants',
@@ -433,23 +445,23 @@ export default function AdminProducts() {
 
           <Space style={{ width: '100%' }}>
             <Form.Item name="price" label="Giá" rules={[{ required: true }]} style={{ flex: 1 }}>
-              <InputNumber min={0} style={{ width: '100%' }} />
+              <PriceInputNumber min={0} style={{ width: '100%' }} />
             </Form.Item>
 
             <Form.Item name="sale_price" label="Giá khuyến mãi" style={{ flex: 1 }}>
-              <InputNumber min={0} style={{ width: '100%' }} />
+              <PriceInputNumber min={0} style={{ width: '100%' }} />
             </Form.Item>
           </Space>
 
           <Space style={{ width: '100%' }}>
             <Form.Item
               name="stock"
-              label="Stock"
+              label="Tồn kho"
               rules={hasVariantRows ? [] : [{ required: true }]}
               style={{ flex: 1 }}
               extra={
                 hasVariantRows
-                  ? 'Tự tính = tổng stock các biến thể'
+                  ? 'Tự tính = tổng tồn kho các biến thể'
                   : undefined
               }
             >
@@ -544,10 +556,10 @@ export default function AdminProducts() {
                         name={[field.name, 'price']}
                         label="Giá"
                       >
-                        <InputNumber
+                        <PriceInputNumber
                           min={0}
                           step={1000}
-                          placeholder="350000"
+                          placeholder="350.000"
                           style={{ width: 140 }}
                         />
                       </Form.Item>
@@ -555,7 +567,7 @@ export default function AdminProducts() {
                       <Form.Item
                         {...field}
                         name={[field.name, 'stock']}
-                        label="Stock"
+                        label="Tồn kho"
                       >
                         <InputNumber min={0} placeholder="20" style={{ width: 100 }} />
                       </Form.Item>

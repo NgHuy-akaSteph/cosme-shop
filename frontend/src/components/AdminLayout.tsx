@@ -23,7 +23,7 @@ export default function AdminLayout() {
   const { logout } = useAuthStore();
 
   const handleLogout = () => {
-    logout();
+    logout({ clearCart: true });
     navigate('/');
   };
 

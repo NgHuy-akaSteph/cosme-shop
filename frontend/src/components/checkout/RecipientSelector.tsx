@@ -18,12 +18,17 @@ export default function RecipientSelector({ value, onChange }: RecipientSelector
       <Radio.Group
         value={value}
         onChange={(e) => onChange(e.target.value as RecipientMode)}
-        style={{ marginTop: 8 }}
+        style={{
+          marginTop: 8,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'flex-start',
+          gap: 8,
+        }}
       >
         <Radio value="self">
           <Text>Giao cho tôi (dùng thông tin trong hồ sơ)</Text>
         </Radio>
-        <br />
         <Radio value="other">
           <Text>Giao cho người khác</Text>
         </Radio>

@@ -68,6 +68,16 @@ if not exist "%FRONTEND_DIR%\.env" (
 echo [dev] Khoi dong frontend tai http://localhost:%FRONTEND_PORT%
 start "cosme-frontend" /D "%FRONTEND_DIR%" cmd /k "call npm run dev -- --port %FRONTEND_PORT%"
 
+REM ---------------------------------------------------------- Ngrok
+set "NGROK_URL=https://habitat-diligence-various.ngrok-free.dev"
+where ngrok >nul 2>&1
+if errorlevel 1 (
+    echo [dev][error] Khong tim thay ngrok. Cai ngrok de mo tunnel ^(https://ngrok.com/download^).
+) else (
+    echo [dev] Khoi dong ngrok cho backend tai %NGROK_URL%
+    start "cosme-ngrok" cmd /k "ngrok http %BACKEND_PORT% --url %NGROK_URL%"
+)
+
 echo.
 echo [dev] FE: http://localhost:%FRONTEND_PORT%   BE: http://localhost:%BACKEND_PORT%
 echo [dev] Dong cua so cua 2 tien trinh de dung.

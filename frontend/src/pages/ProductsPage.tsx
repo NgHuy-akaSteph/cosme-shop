@@ -5,6 +5,7 @@ import { SearchOutlined } from '@ant-design/icons';
 import api from '../api/axios';
 import ProductCard from '../components/ProductCard';
 import { useProducts } from '../hooks/useProducts';
+import { useAddToCartFromCard } from '../hooks/useAddToCartFromCard';
 import { CONCERNS, PRICE_RANGES, SKIN_TYPES, SORT_OPTIONS } from '../utils/constants';
 import { colors } from '../theme';
 
@@ -48,6 +49,8 @@ export default function ProductsPage() {
     min_price: pricePreset?.min ?? null,
     max_price: pricePreset?.max ?? null,
   });
+
+  const handleAddToCart = useAddToCartFromCard();
 
   const { data: categories } = useQuery({
     queryKey: ['categories'],
@@ -254,7 +257,7 @@ export default function ProductsPage() {
               <Row gutter={[16, 16]}>
                 {products.map((product) => (
                   <Col key={product.id} xs={12} sm={8} md={8} lg={6}>
-                    <ProductCard product={product} />
+                    <ProductCard product={product} onAddToCart={handleAddToCart} />
                   </Col>
                 ))}
               </Row>

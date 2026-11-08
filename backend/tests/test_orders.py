@@ -32,6 +32,26 @@ async def test_create_order_cod_success(client, login, product):
 
 
 @pytest.mark.asyncio
+async def test_order_amounts_serialized_without_exponent(client, login, product):
+    """Tien don phai la chuoi PHANG (vd "800000"), khong phai "8E+5"."""
+    headers = await login("user@example.com", "user123")
+    res = await client.post("/api/orders", json=_payload(product.id, 2), headers=headers)
+    assert res.status_code == 201, res.text
+
+    order = res.json()["data"]["order"]
+    for field in ("subtotal", "discount_amount", "total"):
+        value = order[field]
+        assert isinstance(value, str), f"{field} phai la chuoi, nhan {type(value)}"
+        assert "E" not in value.upper(), f"{field} chua ky hieu mu: {value}"
+
+    assert order["total"] == "800000"
+
+    for item in order["items"]:
+        for field in ("product_price", "subtotal"):
+            assert "E" not in str(item[field]).upper(), f"{field} chua ky hieu mu"
+
+
+@pytest.mark.asyncio
 async def test_create_order_insufficient_stock(client, login, product):
     headers = await login("user@example.com", "user123")
     res = await client.post("/api/orders", json=_payload(product.id, 50), headers=headers)

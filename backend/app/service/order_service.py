@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlalchemy.orm.attributes import flag_modified
 
+from app.core.money import format_money
 from app.model.order import Order
 from app.model.order_item import OrderItem
 from app.model.order_status_history import OrderStatusHistory
@@ -561,10 +562,10 @@ def order_to_dict(order: Order) -> dict[str, Any]:
         "user_id": order.user_id,
         "order_code": order.order_code,
         "status": order.status,
-        "subtotal": str(order.subtotal),
+        "subtotal": format_money(order.subtotal),
         "discount_code": order.discount_code,
-        "discount_amount": str(order.discount_amount),
-        "total": str(order.total),
+        "discount_amount": format_money(order.discount_amount),
+        "total": format_money(order.total),
         "payment_method": order.payment_method,
         "payment_status": order.payment_status,
         "paid_at": order.paid_at,
@@ -582,11 +583,11 @@ def order_to_dict(order: Order) -> dict[str, Any]:
                 "id": item.id,
                 "product_id": item.product_id,
                 "product_name": item.product_name,
-                "product_price": str(item.product_price),
+                "product_price": format_money(item.product_price),
                 "product_image": item.product_image,
                 "variant_info": item.variant_info,
                 "qty": item.qty,
-                "subtotal": str(item.subtotal),
+                "subtotal": format_money(item.subtotal),
             }
             for item in order.items
         ],

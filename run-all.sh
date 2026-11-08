@@ -79,5 +79,17 @@ log "Khởi động frontend tại http://localhost:$FRONTEND_PORT"
 ) &
 PIDS+=($!)
 
+# ---------------------------------------------------------------- Ngrok
+NGROK_URL="https://habitat-diligence-various.ngrok-free.dev"
+if command -v ngrok >/dev/null 2>&1; then
+    log "Khởi động ngrok cho backend (port $BACKEND_PORT) tại $NGROK_URL"
+    (
+        exec ngrok http "$BACKEND_PORT" --url "$NGROK_URL"
+    ) &
+    PIDS+=($!)
+else
+    err "Không tìm thấy ngrok. Cài ngrok để mở tunnel (https://ngrok.com/download)."
+fi
+
 log "FE: http://localhost:$FRONTEND_PORT  |  BE: http://localhost:$BACKEND_PORT"
 wait
