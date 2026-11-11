@@ -17,6 +17,7 @@ import {
 } from 'antd';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import type { CSSProperties } from 'react';
 import {
   PlusOutlined,
   EditOutlined,
@@ -36,6 +37,56 @@ import type { PendingUpload } from '../../components/admin/ProductStagedUploader
 import type { ProductImage, ProductVariant } from '../../types/product';
 
 const { Title, Text } = Typography;
+
+/**
+ * Layout bang nhap bien the (phan loai).
+ *
+ * Dung CSS grid thuần thay vi `Space` + `label` tren tung `Form.Item`:
+ * - `Space` can chinh theo mép tren nen nút xóa (khong co label) bi lech len
+ *   tren so voi cac o input.
+ * - Grid co header rieng nen moi `Form.Item` bo `label`, cac input thang hang
+ *   va nút xóa luôn nam giua hang.
+ */
+const VARIANT_GRID_TEMPLATE = '100px minmax(140px, 1fr) 160px 130px 40px';
+
+/** Hang header: can chieu rong hang duoi ve duoi (alignItems: 'end'). */
+const VARIANT_GRID_STYLE: CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: VARIANT_GRID_TEMPLATE,
+  gap: 12,
+  alignItems: 'end',
+  marginBottom: 4,
+};
+
+/**
+ * Hang du lieu: `alignItems: 'start'` de moi o input deu bat dau cung mot moc
+ * (khi co loi validation, thong bao loi nam DUOI input chu khong day ca hang
+ * xuong). Nut xoa cung bat dau cung moc voi input nen khong lech len tren.
+ */
+const VARIANT_ROW_STYLE: CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: VARIANT_GRID_TEMPLATE,
+  gap: 12,
+  alignItems: 'start',
+  marginBottom: 8,
+};
+
+const VARIANT_HEADER_STYLE: CSSProperties = {
+  fontSize: 12,
+  lineHeight: '22px',
+};
+
+/** Wrapper cua nút xóa: can giua theo chieu ngang cua cot. */
+const VARIANT_DELETE_WRAP_STYLE: CSSProperties = {
+  display: 'flex',
+  justifyContent: 'center',
+  alignItems: 'center',
+};
+
+/** `Form.Item` trong grid: bo margin-bottom mac dinh de hang khong bi lech. */
+const VARIANT_FIELD_STYLE: CSSProperties = {
+  marginBottom: 0,
+};
 
 /** 1 bien the trong form admin. `id` tu sinh neu admin de trong. */
 interface VariantFormRow {
@@ -435,7 +486,7 @@ export default function AdminProducts() {
         open={isModalOpen}
         onCancel={handleCloseModal}
         footer={null}
-        width={640}
+        width={860}
         destroyOnClose
       >
         <Form form={form} layout="vertical" onFinish={handleSubmit}>
@@ -459,11 +510,6 @@ export default function AdminProducts() {
               label="Tồn kho"
               rules={hasVariantRows ? [] : [{ required: true }]}
               style={{ flex: 1 }}
-              extra={
-                hasVariantRows
-                  ? 'Tự tính = tổng tồn kho các biến thể'
-                  : undefined
-              }
             >
               <InputNumber
                 min={0}
@@ -487,6 +533,12 @@ export default function AdminProducts() {
               />
             </Form.Item>
           </Space>
+
+          {hasVariantRows && (
+            <Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: -12, marginBottom: 12 }}>
+              Tồn kho tự động tính = tổng tồn kho các biến thể.
+            </Text>
+          )}
 
           <Form.Item name="brand_id" label="Thương hiệu" rules={[{ required: true }]}>
             <Select
@@ -531,53 +583,66 @@ export default function AdminProducts() {
             <Form.List name="variants">
               {(fields, { add, remove }) => (
                 <>
+                  {/* Header: nhan cot nam o tren, moi dong duoi la input thang hang */}
+                  <div style={VARIANT_GRID_STYLE}>
+                    <Text type="secondary" style={VARIANT_HEADER_STYLE}>ID</Text>
+                    <Text type="secondary" style={VARIANT_HEADER_STYLE}>Tên</Text>
+                    <Text type="secondary" style={VARIANT_HEADER_STYLE}>Giá</Text>
+                    <Text type="secondary" style={VARIANT_HEADER_STYLE}>Tồn kho</Text>
+                    <span />
+                  </div>
+
                   {fields.map((field) => (
-                    <Space key={field.key} align="start" style={{ marginBottom: 8 }}>
+                    <div key={field.key} style={VARIANT_ROW_STYLE}>
                       <Form.Item
                         {...field}
                         name={[field.name, 'id']}
-                        label="ID"
                         rules={[{ required: true, message: 'Cần ID' }]}
+                        style={VARIANT_FIELD_STYLE}
                       >
-                        <Input placeholder="v1" style={{ width: 90 }} />
+                        <Input placeholder="v1" />
                       </Form.Item>
 
                       <Form.Item
                         {...field}
                         name={[field.name, 'name']}
-                        label="Tên"
                         rules={[{ required: true, message: 'Cần tên biến thể' }]}
+                        style={VARIANT_FIELD_STYLE}
                       >
-                        <Input placeholder="Đỏ Ruby" style={{ width: 160 }} />
+                        <Input placeholder="Đỏ Ruby" />
                       </Form.Item>
 
                       <Form.Item
                         {...field}
                         name={[field.name, 'price']}
-                        label="Giá"
+                        style={VARIANT_FIELD_STYLE}
                       >
                         <PriceInputNumber
                           min={0}
                           step={1000}
                           placeholder="350.000"
-                          style={{ width: 140 }}
+                          style={{ width: '100%' }}
                         />
                       </Form.Item>
 
                       <Form.Item
                         {...field}
                         name={[field.name, 'stock']}
-                        label="Tồn kho"
+                        style={VARIANT_FIELD_STYLE}
                       >
-                        <InputNumber min={0} placeholder="20" style={{ width: 100 }} />
+                        <InputNumber min={0} placeholder="20" style={{ width: '100%' }} />
                       </Form.Item>
 
-                      <Button
-                        danger
-                        icon={<DeleteOutlined />}
-                        onClick={() => remove(field.name)}
-                      />
-                    </Space>
+                      {/* Nut xoa can chinh giua theo chieu cao hang */}
+                      <div style={VARIANT_DELETE_WRAP_STYLE}>
+                        <Button
+                          danger
+                          type="text"
+                          icon={<DeleteOutlined />}
+                          onClick={() => remove(field.name)}
+                        />
+                      </div>
+                    </div>
                   ))}
 
                   <Button
