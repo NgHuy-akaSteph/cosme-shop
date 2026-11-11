@@ -7,7 +7,7 @@ import {
 } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
 import api from '../../api/axios';
-import { formatPrice } from '../../utils/constants';
+import { formatPrice, statusText } from '../../utils/constants';
 import { colors } from '../../theme';
 
 const { Title, Text } = Typography;
@@ -121,7 +121,7 @@ export default function AdminDashboard() {
         <Row gutter={16}>
           {Object.entries(data?.orders_by_status ?? {}).map(([status, count]) => (
             <Col key={status} xs={12} md={6}>
-              <Text type="secondary">{status}</Text>
+              <Text type="secondary">{statusText[status] || status}</Text>
               <div style={{ fontSize: 22, fontWeight: 600 }}>{count}</div>
             </Col>
           ))}

@@ -69,7 +69,8 @@ export default function AdminOrders() {
   const [page, setPage] = useState(1);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [newStatus, setNewStatus] = useState('');
+  // `undefined` (khong phai `''`) de antd hien thi `placeholder` khi chua chon.
+  const [newStatus, setNewStatus] = useState<string | undefined>(undefined);
   const [note, setNote] = useState('');
 
   const { data: ordersData, isLoading } = useQuery({
@@ -158,7 +159,11 @@ export default function AdminOrders() {
           type="link"
           onClick={() => {
             setSelectedOrder(record);
-            setNewStatus(record.status);
+            // Reset de trang thai moi (chua chon) - KHONG preset `record.status`.
+            // `options` chi chua cac trang thai DEN, nen preset trang thai hien
+            // tai se bi antd render bang MA tieng Anh ("pending") thay vi nhan
+            // tieng Viet, gay hien thi "ca tieng Anh va tieng Viet".
+            setNewStatus(undefined);
             setNote('');
             setIsModalOpen(true);
           }}
@@ -206,12 +211,17 @@ export default function AdminOrders() {
         open={isModalOpen}
         onCancel={() => setIsModalOpen(false)}
         onOk={handleUpdateStatus}
-        okButtonProps={{ disabled: !newStatus || newStatus === selectedOrder?.status }}
+        okButtonProps={{ disabled: !newStatus }}
         confirmLoading={updateStatusMutation.isPending}
       >
         {selectedOrder && (
           <>
             <Descriptions column={1} style={{ marginBottom: 16 }}>
+              <Descriptions.Item label="Trạng thái hiện tại">
+                <Tag color={statusColors[selectedOrder.status] || 'default'}>
+                  {statusText[selectedOrder.status] || selectedOrder.status}
+                </Tag>
+              </Descriptions.Item>
               <Descriptions.Item label="Khách hàng">
                 {selectedOrder.shipping_name} - {selectedOrder.shipping_phone}
               </Descriptions.Item>

@@ -13,6 +13,7 @@ from sqlalchemy.orm import selectinload
 from sqlalchemy.orm.attributes import flag_modified
 
 from app.core.money import format_money
+from app.core.order_status import STATUS_LABELS_VI
 from app.model.order import Order
 from app.model.order_item import OrderItem
 from app.model.order_status_history import OrderStatusHistory
@@ -395,7 +396,13 @@ async def update_order_status(
     }
     
     if new_status not in valid_transitions.get(order.status, []):
-        raise ValueError(f"Không thể chuyển từ {order.status} sang {new_status}")
+        # Nhan tieng Viet cho ca hai trang thai - thong bao cho admin khong
+        # duoc tron ma tieng Anh ("pending") va tieng Viet.
+        raise ValueError(
+            f"Không thể chuyển đơn từ "
+            f"“{STATUS_LABELS_VI.get(order.status, order.status)}” "
+            f"sang “{STATUS_LABELS_VI.get(new_status, new_status)}”"
+        )
     
     # Update status
     order.status = new_status
