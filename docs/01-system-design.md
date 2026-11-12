@@ -358,6 +358,27 @@ erDiagram
 | Upload | PATCH | `/api/upload/product-image/{product_id}/reorder` | Admin |
 | Upload | DELETE | `/api/upload/product-image/{image_id}` | Admin |
 
+#### 4.2.1 Query param cho danh sách (sort + search)
+
+Các endpoint danh sách hỗ trợ thêm query param để trang Admin sắp xếp và
+tìm kiếm thống nhất. **Không truyền param → giữ nguyên hành vi mặc định
+cũ** (public API không bị ảnh hưởng).
+
+| Endpoint | Param | Giá trị | Ý nghĩa |
+|---|---|---|---|
+| `GET /api/products` | `sort` | `newest` \| `oldest` \| `price_asc` \| `price_desc` \| `best_seller` | Mặc định: `id` giảm dần |
+| `GET /api/products` | `search` | chuỗi | Lọc theo **tên** sản phẩm |
+| `GET /api/categories` | `sort` | `newest` \| `oldest` \| `name_asc` | Mặc định: `name` tăng dần |
+| `GET /api/brands` | `sort` | `newest` \| `oldest` \| `name_asc` | Mặc định: `name` tăng dần |
+| `GET /api/admin/users` | `search` | chuỗi | Lọc theo **tên** (`full_name`); email/SĐT là trường phụ |
+| `GET /api/admin/orders` | `search` | chuỗi | Lọc theo **mã đơn** (`order_code`) |
+
+> Mọi `ORDER BY` đều có tiebreak theo `id` → phân trang ổn định khi nhiều bản
+> ghi trùng `created_at`.
+
+> Khi `search` được dùng, `total` được tính trên **cùng** điều kiện lọc với
+> `data` → số trang hiển thị luôn khớp số kết quả thực tế.
+
 ### 4.3 AI Service endpoints (nội bộ)
 
 - `POST /routine` — nhận quiz + danh sách sản phẩm đã match → gọi Gemini → trả routine.

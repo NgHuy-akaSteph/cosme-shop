@@ -144,8 +144,13 @@ async def get_all_orders(
     limit: int = 20,
     status: str | None = None,
     user_id: int | None = None,
+    search: str | None = None,
 ) -> tuple[list[Order], int]:
-    """Lay danh sach tat ca don hang (Admin)."""
+    """
+    Lay danh sach tat ca don hang (Admin).
+
+    `search`: loc theo MA DON (`order_code`).
+    """
     query = (
         select(Order)
         .options(
@@ -153,27 +158,47 @@ async def get_all_orders(
             selectinload(Order.status_history)
         )
     )
-    
+
     count_query = select(func.count(Order.id))
-    
+
     if status:
         query = query.where(Order.status == status)
         count_query = count_query.where(Order.status == status)
-    
+
     if user_id:
         query = query.where(Order.user_id == user_id)
         count_query = count_query.where(Order.user_id == user_id)
-    
-    query = query.order_by(Order.created_at.desc())
-    
+
+    # Cung dieu kien loc cho query va count => `total` khop so ban ghi tra ve.
+    search_cond = _build_order_search_condition(search)
+    if search_cond is not None:
+        query = query.where(search_cond)
+        count_query = count_query.where(search_cond)
+
+    query = query.order_by(Order.created_at.desc(), Order.id.desc())
+
     total_result = await db.execute(count_query)
     total = total_result.scalar_one()
-    
+
     query = query.offset(skip).limit(limit)
     result = await db.execute(query)
     orders = list(result.scalars().all())
-    
+
     return orders, total
+
+
+def _build_order_search_condition(search: str | None):
+    """
+    Dieu kien loc don hang theo tu khoa (Admin).
+
+    Chi loc theo MA DON (`order_code`). Khong phan biet hoa/thuong (ILIKE).
+    """
+    if not search:
+        return None
+    keyword = search.strip()
+    if not keyword:
+        return None
+    return Order.order_code.ilike(f"%{keyword}%")
 
 
 async def create_order(

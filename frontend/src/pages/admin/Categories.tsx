@@ -1,8 +1,10 @@
 import { Table, Button, Card, Typography, Space, Modal, Form, Input, Popconfirm, App } from 'antd';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import api from '../../api/axios';
+import AdminSearchBox from '../../components/admin/AdminSearchBox';
+import { buildSimpleSequenceColumn } from '../../components/admin/sequence-column';
 
 const { Title } = Typography;
 
@@ -25,46 +27,66 @@ export default function AdminCategories() {
   const { message } = App.useApp();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+  const [search, setSearch] = useState('');
   const [form] = Form.useForm();
-  
+
+  // QueryKey rieng cho admin (khong dung chung `['categories']` voi public)
+  // vi du lieu sap xep khac nhau.
   const { data: categories, isLoading } = useQuery({
-    queryKey: ['categories'],
+    queryKey: ['admin', 'categories'],
     queryFn: async () => {
-      const res = await api.get('/api/categories');
+      const res = await api.get('/api/categories?sort=newest&size=200');
       return res.data.data as Category[];
     },
   });
-  
+
+  // Loc client-side: danh muc it, khong can round-trip server.
+  const filteredCategories = useMemo(() => {
+    const keyword = search.trim().toLowerCase();
+    if (!keyword) return categories ?? [];
+    return (categories ?? []).filter(
+      (c) =>
+        c.name.toLowerCase().includes(keyword) ||
+        c.slug.toLowerCase().includes(keyword),
+    );
+  }, [categories, search]);
+
+  /** Invalidate ca cache public (trang chu) va cache admin. */
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: ['admin', 'categories'] });
+    queryClient.invalidateQueries({ queryKey: ['categories'] });
+  };
+
   const createMutation = useMutation({
     mutationFn: async (values: CategoryPayload) => {
       const res = await api.post('/api/categories', values);
       return res.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['categories'] });
+      invalidate();
       message.success('Tạo danh mục thành công!');
       handleCloseModal();
     },
   });
-  
+
   const updateMutation = useMutation({
     mutationFn: async ({ id, ...values }: CategoryPayload & { id: number }) => {
       const res = await api.patch(`/api/categories/${id}`, values);
       return res.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['categories'] });
+      invalidate();
       message.success('Cập nhật thành công!');
       handleCloseModal();
     },
   });
-  
+
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
       await api.delete(`/api/categories/${id}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['categories'] });
+      invalidate();
       message.success('Xóa danh mục thành công!');
     },
   });
@@ -95,7 +117,7 @@ export default function AdminCategories() {
   };
   
   const columns = [
-    { title: 'ID', dataIndex: 'id', width: 60 },
+    buildSimpleSequenceColumn<Category>(),
     { title: 'Tên danh mục', dataIndex: 'name' },
     { title: 'Slug', dataIndex: 'slug' },
     { title: 'Mô tả', dataIndex: 'description' },
@@ -122,7 +144,19 @@ export default function AdminCategories() {
       </div>
       
       <Card>
-        <Table dataSource={categories} columns={columns} rowKey="id" loading={isLoading} />
+        <AdminSearchBox
+          value={search}
+          onChange={setSearch}
+          placeholder="Tìm theo tên danh mục"
+        />
+        <Table
+          dataSource={filteredCategories}
+          columns={columns}
+          rowKey="id"
+          loading={isLoading}
+          pagination={false}
+          locale={{ emptyText: 'Không tìm thấy danh mục phù hợp' }}
+        />
       </Card>
       
       <Modal

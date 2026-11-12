@@ -2,6 +2,8 @@ import { Table, Card, Typography, Tag, Switch, App } from 'antd';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import api from '../../api/axios';
+import AdminSearchBox from '../../components/admin/AdminSearchBox';
+import { buildSequenceColumn } from '../../components/admin/sequence-column';
 
 const { Title } = Typography;
 
@@ -28,16 +30,29 @@ export default function AdminUsers() {
   const queryClient = useQueryClient();
   const { message } = App.useApp();
   const [page, setPage] = useState(1);
+  const [search, setSearch] = useState('');
 
+  // Tim kiem server-side: danh sach user phan trang o server nen client-side
+  // chi loc duoc 20 user cua trang hien tai -> sai.
   const { data: usersData, isLoading } = useQuery({
-    queryKey: ['admin', 'users', page],
+    queryKey: ['admin', 'users', page, search],
     queryFn: async () => {
-      const res = await api.get(`/api/admin/users?page=${page}&size=${PAGE_SIZE}`);
+      const params = new URLSearchParams();
+      params.append('page', String(page));
+      params.append('size', String(PAGE_SIZE));
+      if (search.trim()) params.append('search', search.trim());
+      const res = await api.get(`/api/admin/users?${params.toString()}`);
       return res.data as UserListResponse;
     },
   });
 
   const users = usersData?.data ?? [];
+
+  /** Doi tu khoa tim kiem -> quay ve trang 1. */
+  const handleSearchChange = (value: string) => {
+    setSearch(value);
+    setPage(1);
+  };
 
   const toggleMutation = useMutation({
     mutationFn: async ({ id, is_active }: { id: number; is_active: boolean }) => {
@@ -53,7 +68,7 @@ export default function AdminUsers() {
   });
 
   const columns = [
-    { title: 'ID', dataIndex: 'id', width: 60 },
+    buildSequenceColumn<User>(page, PAGE_SIZE),
     { title: 'Email', dataIndex: 'email' },
     { title: 'Họ tên', dataIndex: 'full_name' },
     { title: 'SĐT', dataIndex: 'phone' },
@@ -88,6 +103,12 @@ export default function AdminUsers() {
       <Title level={2}>Quản lý người dùng</Title>
 
       <Card>
+        <AdminSearchBox
+          value={search}
+          onChange={handleSearchChange}
+          placeholder="Tìm theo tên người dùng"
+          loading={isLoading}
+        />
         <Table
           dataSource={users}
           columns={columns}
@@ -100,6 +121,7 @@ export default function AdminUsers() {
             showSizeChanger: false,
             onChange: setPage,
           }}
+          locale={{ emptyText: 'Không tìm thấy người dùng phù hợp' }}
         />
       </Card>
     </div>

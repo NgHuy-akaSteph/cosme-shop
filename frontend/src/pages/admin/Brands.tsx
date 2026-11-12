@@ -1,8 +1,10 @@
 import { Table, Button, Card, Typography, Space, Modal, Form, Input, Popconfirm, App } from 'antd';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import api from '../../api/axios';
+import AdminSearchBox from '../../components/admin/AdminSearchBox';
+import { buildSimpleSequenceColumn } from '../../components/admin/sequence-column';
 
 const { Title } = Typography;
 
@@ -25,46 +27,66 @@ export default function AdminBrands() {
   const { message } = App.useApp();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingBrand, setEditingBrand] = useState<Brand | null>(null);
+  const [search, setSearch] = useState('');
   const [form] = Form.useForm();
-  
+
+  // QueryKey rieng cho admin (khong dung chung `['brands']` voi public)
+  // vi du lieu sap xep khac nhau.
   const { data: brands, isLoading } = useQuery({
-    queryKey: ['brands'],
+    queryKey: ['admin', 'brands'],
     queryFn: async () => {
-      const res = await api.get('/api/brands');
+      const res = await api.get('/api/brands?sort=newest&size=200');
       return res.data.data as Brand[];
     },
   });
-  
+
+  // Loc client-side: thuong hieu it, khong can round-trip server.
+  const filteredBrands = useMemo(() => {
+    const keyword = search.trim().toLowerCase();
+    if (!keyword) return brands ?? [];
+    return (brands ?? []).filter(
+      (b) =>
+        b.name.toLowerCase().includes(keyword) ||
+        b.slug.toLowerCase().includes(keyword),
+    );
+  }, [brands, search]);
+
+  /** Invalidate ca cache public (trang chu) va cache admin. */
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: ['admin', 'brands'] });
+    queryClient.invalidateQueries({ queryKey: ['brands'] });
+  };
+
   const createMutation = useMutation({
     mutationFn: async (values: BrandPayload) => {
       const res = await api.post('/api/brands', values);
       return res.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['brands'] });
+      invalidate();
       message.success('Tạo thương hiệu thành công!');
       handleCloseModal();
     },
   });
-  
+
   const updateMutation = useMutation({
     mutationFn: async ({ id, ...values }: BrandPayload & { id: number }) => {
       const res = await api.patch(`/api/brands/${id}`, values);
       return res.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['brands'] });
+      invalidate();
       message.success('Cập nhật thành công!');
       handleCloseModal();
     },
   });
-  
+
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
       await api.delete(`/api/brands/${id}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['brands'] });
+      invalidate();
       message.success('Xóa thương hiệu thành công!');
     },
   });
@@ -95,7 +117,7 @@ export default function AdminBrands() {
   };
   
   const columns = [
-    { title: 'ID', dataIndex: 'id', width: 60 },
+    buildSimpleSequenceColumn<Brand>(),
     { title: 'Tên thương hiệu', dataIndex: 'name' },
     { title: 'Slug', dataIndex: 'slug' },
     { title: 'Mô tả', dataIndex: 'description' },
@@ -122,7 +144,19 @@ export default function AdminBrands() {
       </div>
       
       <Card>
-        <Table dataSource={brands} columns={columns} rowKey="id" loading={isLoading} />
+        <AdminSearchBox
+          value={search}
+          onChange={setSearch}
+          placeholder="Tìm theo tên thương hiệu"
+        />
+        <Table
+          dataSource={filteredBrands}
+          columns={columns}
+          rowKey="id"
+          loading={isLoading}
+          pagination={false}
+          locale={{ emptyText: 'Không tìm thấy thương hiệu phù hợp' }}
+        />
       </Card>
       
       <Modal

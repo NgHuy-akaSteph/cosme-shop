@@ -1,6 +1,6 @@
 """Brand API endpoints"""
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
@@ -16,13 +16,16 @@ router = APIRouter(prefix="/api/brands", tags=["brands"])
 async def list_brands(
     page: int = 1,
     size: int = 100,
+    sort: str | None = Query(None, description="newest | oldest | name_asc"),
     db: AsyncSession = Depends(get_db),
 ):
     """
     Lay danh sach thuong hieu (Public).
+
+    `sort`: `newest` (moi tao truoc), `oldest`, mac dinh alphabet theo ten.
     """
     skip = (page - 1) * size
-    brands = await brand_service.get_all_brands(db, skip=skip, limit=size)
+    brands = await brand_service.get_all_brands(db, skip=skip, limit=size, sort=sort)
     total = await brand_service.get_brands_count(db)
     
     return BrandListResponse(

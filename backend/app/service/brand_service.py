@@ -4,6 +4,7 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.model.brand import Brand
+from app.service import list_sorting
 
 
 async def get_brand_by_id(db: AsyncSession, brand_id: int) -> Brand | None:
@@ -18,11 +19,20 @@ async def get_brand_by_slug(db: AsyncSession, slug: str) -> Brand | None:
     return result.scalar_one_or_none()
 
 
-async def get_all_brands(db: AsyncSession, skip: int = 0, limit: int = 100) -> list[Brand]:
-    """Lay danh sach tat ca brands."""
-    result = await db.execute(
-        select(Brand).order_by(Brand.name).offset(skip).limit(limit)
-    )
+async def get_all_brands(
+    db: AsyncSession,
+    skip: int = 0,
+    limit: int = 100,
+    sort: str | None = None,
+) -> list[Brand]:
+    """
+    Lay danh sach tat ca brands.
+
+    `sort`: `newest` (moi nhat truoc), `oldest`, mac dinh alphabet theo ten.
+    """
+    query = select(Brand)
+    query = list_sorting.apply_sort(query, Brand, sort)
+    result = await db.execute(query.offset(skip).limit(limit))
     return list(result.scalars().all())
 
 

@@ -1,6 +1,6 @@
 """Category API endpoints"""
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
@@ -18,13 +18,16 @@ router = APIRouter(prefix="/api/categories", tags=["categories"])
 async def list_categories(
     page: int = 1,
     size: int = 100,
+    sort: str | None = Query(None, description="newest | oldest | name_asc"),
     db: AsyncSession = Depends(get_db),
 ):
     """
     Lay danh sach danh muc (Public).
+
+    `sort`: `newest` (moi tao truoc), `oldest`, mac dinh alphabet theo ten.
     """
     skip = (page - 1) * size
-    categories = await category_service.get_all_categories(db, skip=skip, limit=size)
+    categories = await category_service.get_all_categories(db, skip=skip, limit=size, sort=sort)
     total = await category_service.get_categories_count(db)
     
     return CategoryListResponse(

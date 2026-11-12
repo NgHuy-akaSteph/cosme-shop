@@ -142,7 +142,7 @@ async def get_all_coupons(
     is_active: bool | None = None,
 ) -> list[Coupon]:
     """Lay danh sach coupon (Admin), moi nhat trong."""
-    query = select(Coupon).order_by(Coupon.created_at.desc())
+    query = select(Coupon).order_by(Coupon.created_at.desc(), Coupon.id.desc())
     if is_active is not None:
         query = query.where(Coupon.is_active == is_active)
     result = await db.execute(query.offset(skip).limit(limit))

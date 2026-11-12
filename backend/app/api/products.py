@@ -112,7 +112,7 @@ async def list_products(
     skin_types: str | None = None,  # comma-separated
     concerns: str | None = None,  # comma-separated
     search: str | None = None,
-    sort: str | None = None,
+    sort: str | None = Query(None, description="newest | oldest | price_asc | price_desc | best_seller"),
     db: AsyncSession = Depends(get_db),
 ):
     """

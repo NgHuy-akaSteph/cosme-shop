@@ -1,6 +1,6 @@
 """User management API endpoints (Admin)"""
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
@@ -29,14 +29,17 @@ class UserListResponse(BaseModel):
 async def list_users(
     page: int = 1,
     size: int = 20,
+    search: str | None = Query(None, description="Tim theo ten (email/SDT la truong phu)"),
     current_admin: User = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """
     Lay danh sach nguoi dung (Admin).
+
+    `search`: loc theo TEN (`full_name`); email/SDT la truong phu.
     """
     skip = (page - 1) * size
-    users = await get_all_users(db, skip=skip, limit=size)
+    users = await get_all_users(db, skip=skip, limit=size, search=search)
     
     user_list = [
         {
@@ -53,7 +56,7 @@ async def list_users(
     
     return UserListResponse(
         data=user_list,
-        total=await count_users(db),
+        total=await count_users(db, search=search),
         page=page,
         size=size,
     )

@@ -5,6 +5,8 @@ import api from '../../api/axios';
 import { formatPrice, statusColors, statusText } from '../../utils/constants';
 import type { ApiError } from '../../types/api';
 import { getErrorMessage } from '../../types/api';
+import AdminSearchBox from '../../components/admin/AdminSearchBox';
+import { buildSequenceColumn } from '../../components/admin/sequence-column';
 import { App } from 'antd';
 
 const { Title, Text } = Typography;
@@ -50,6 +52,9 @@ const statusOptions = [
   { value: 'cancelled', label: 'Đã hủy' },
 ];
 
+/** Bo loc trang thai: them "Tất cả" de xoa loc. */
+const statusFilterOptions = [{ value: 'all', label: 'Tất cả' }, ...statusOptions];
+
 /** May trang thai don hang: chi cho chuyen sang trang thai hop le. */
 const NEXT_STATUS: Record<string, string[]> = {
   pending: ['confirmed', 'cancelled'],
@@ -65,21 +70,26 @@ const PAGE_SIZE = 20;
 export default function AdminOrders() {
   const queryClient = useQueryClient();
   const { message } = App.useApp();
-  const [statusFilter, setStatusFilter] = useState<string | undefined>(undefined);
+  const [statusFilter, setStatusFilter] = useState<string>('all');
   const [page, setPage] = useState(1);
+  const [search, setSearch] = useState('');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   // `undefined` (khong phai `''`) de antd hien thi `placeholder` khi chua chon.
   const [newStatus, setNewStatus] = useState<string | undefined>(undefined);
   const [note, setNote] = useState('');
 
+  // Tim kiem server-side: don hang phan trang o server nen client-side chi
+  // loc duoc 20 don cua trang hien tai -> sai.
   const { data: ordersData, isLoading } = useQuery({
-    queryKey: ['admin', 'orders', statusFilter, page],
+    queryKey: ['admin', 'orders', statusFilter, page, search],
     queryFn: async () => {
       const params = new URLSearchParams();
       params.append('page', String(page));
       params.append('size', String(PAGE_SIZE));
-      if (statusFilter) params.append('status', statusFilter);
+      // `all` = khong loc, khong gui len server.
+      if (statusFilter && statusFilter !== 'all') params.append('status', statusFilter);
+      if (search.trim()) params.append('search', search.trim());
 
       const res = await api.get(`/api/admin/orders?${params}`);
       return res.data as OrderListResponse;
@@ -87,6 +97,12 @@ export default function AdminOrders() {
   });
 
   const orders = ordersData?.data ?? [];
+
+  /** Doi tu khoa tim kiem -> quay ve trang 1. */
+  const handleSearchChange = (value: string) => {
+    setSearch(value);
+    setPage(1);
+  };
 
   const updateStatusMutation = useMutation({
     mutationFn: async ({ id, status, note }: { id: number; status: string; note?: string }) => {
@@ -119,6 +135,7 @@ export default function AdminOrders() {
     : [];
 
   const columns = [
+    buildSequenceColumn<Order>(page, PAGE_SIZE),
     { title: 'Mã đơn', dataIndex: 'order_code' },
     {
       title: 'Ngày đặt',
@@ -176,21 +193,37 @@ export default function AdminOrders() {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
+      <div style={{ marginBottom: 16 }}>
         <Title level={2}>Quản lý đơn hàng</Title>
-        <Select
-          placeholder="Lọc theo trạng thái"
-          allowClear
-          style={{ width: 200 }}
-          onChange={(v) => {
-            setStatusFilter(v);
-            setPage(1);
-          }}
-          options={statusOptions}
-        />
       </div>
 
       <Card>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: 16,
+            marginBottom: 16,
+          }}
+        >
+          <AdminSearchBox
+            value={search}
+            onChange={handleSearchChange}
+            placeholder="Tìm theo mã đơn"
+            loading={isLoading}
+            style={{ marginBottom: 0 }}
+          />
+          <Select
+            value={statusFilter}
+            style={{ width: 200 }}
+            onChange={(v) => {
+              setStatusFilter(v);
+              setPage(1);
+            }}
+            options={statusFilterOptions}
+          />
+        </div>
         <Table
           dataSource={orders}
           columns={columns}
@@ -203,6 +236,7 @@ export default function AdminOrders() {
             showSizeChanger: false,
             onChange: setPage,
           }}
+          locale={{ emptyText: 'Không tìm thấy đơn hàng phù hợp' }}
         />
       </Card>
 

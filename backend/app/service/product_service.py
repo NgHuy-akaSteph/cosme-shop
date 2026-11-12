@@ -139,14 +139,18 @@ async def get_products(
     total = total_result.scalar_one()
     
     # Sort
+    # Moi nhanh deu co tiebreak `id` de phan trang on dinh (created_at sinh tu
+    # now() theo transaction => nhieu ban ghi co the trung timestamp).
     if sort == "price_asc":
-        query = query.order_by(func.coalesce(Product.sale_price, Product.price).asc())
+        query = query.order_by(func.coalesce(Product.sale_price, Product.price).asc(), Product.id.desc())
     elif sort == "price_desc":
-        query = query.order_by(func.coalesce(Product.sale_price, Product.price).desc())
+        query = query.order_by(func.coalesce(Product.sale_price, Product.price).desc(), Product.id.desc())
     elif sort == "newest":
-        query = query.order_by(Product.created_at.desc())
+        query = query.order_by(Product.created_at.desc(), Product.id.desc())
+    elif sort == "oldest":
+        query = query.order_by(Product.created_at.asc(), Product.id.asc())
     elif sort == "best_seller":
-        query = query.order_by(Product.sold_count.desc())
+        query = query.order_by(Product.sold_count.desc(), Product.id.desc())
     else:
         query = query.order_by(Product.id.desc())
     

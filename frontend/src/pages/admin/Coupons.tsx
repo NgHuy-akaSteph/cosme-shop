@@ -16,10 +16,12 @@ import {
   Tag,
 } from 'antd';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import dayjs, { type Dayjs } from 'dayjs';
 import api from '../../api/axios';
+import AdminSearchBox from '../../components/admin/AdminSearchBox';
+import { buildSimpleSequenceColumn } from '../../components/admin/sequence-column';
 
 const { Title } = Typography;
 
@@ -64,6 +66,7 @@ export default function AdminCoupons() {
   const { message } = App.useApp();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCoupon, setEditingCoupon] = useState<Coupon | null>(null);
+  const [search, setSearch] = useState('');
   const [form] = Form.useForm<CouponFormValues>();
   const discountType = Form.useWatch('discount_type', form);
 
@@ -74,6 +77,18 @@ export default function AdminCoupons() {
       return res.data.data as Coupon[];
     },
   });
+
+  // Loc client-side: danh sach ma giam gia nho, khong can round-trip server.
+  // Tieu chi CHINH la ten/mo ta chien dich (`description`); `code` la truong phu.
+  const filteredCoupons = useMemo(() => {
+    const keyword = search.trim().toLowerCase();
+    if (!keyword) return coupons ?? [];
+    return (coupons ?? []).filter(
+      (c) =>
+        (c.description ?? '').toLowerCase().includes(keyword) ||
+        c.code.toLowerCase().includes(keyword),
+    );
+  }, [coupons, search]);
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['admin-coupons'] });
 
@@ -157,6 +172,7 @@ export default function AdminCoupons() {
   };
 
   const columns = [
+    buildSimpleSequenceColumn<Coupon>(),
     { title: 'Mã', dataIndex: 'code', width: 160 },
     {
       title: 'Giảm',
@@ -222,7 +238,19 @@ export default function AdminCoupons() {
       </div>
 
       <Card>
-        <Table dataSource={coupons} columns={columns} rowKey="id" loading={isLoading} />
+        <AdminSearchBox
+          value={search}
+          onChange={setSearch}
+          placeholder="Tìm theo tên hoặc mã chiến dịch"
+        />
+        <Table
+          dataSource={filteredCoupons}
+          columns={columns}
+          rowKey="id"
+          loading={isLoading}
+          pagination={false}
+          locale={{ emptyText: 'Không tìm thấy mã giảm giá phù hợp' }}
+        />
       </Card>
 
       <Modal

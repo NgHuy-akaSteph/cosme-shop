@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import hash_password, verify_password
@@ -36,6 +36,28 @@ async def get_user_by_id(db: AsyncSession, user_id: int) -> User | None:
     """Lay user theo ID."""
     result = await db.execute(select(User).where(User.id == user_id))
     return result.scalar_one_or_none()
+
+
+def _apply_user_search(query, search: str | None):
+    """
+    Loc danh sach user theo tu khoa (Admin).
+
+    Tieu chi CHINH la TEN (`full_name`); email va SDT la truong phu de admin
+    tra khi khong nho ten. Khong phan biet hoa/thuong (ILIKE).
+    """
+    if not search:
+        return query
+    keyword = search.strip()
+    if not keyword:
+        return query
+    pattern = f"%{keyword}%"
+    return query.where(
+        or_(
+            User.full_name.ilike(pattern),
+            User.email.ilike(pattern),
+            User.phone.ilike(pattern),
+        )
+    )
 
 
 async def get_user_by_email(db: AsyncSession, email: str) -> User | None:
@@ -101,15 +123,36 @@ async def change_user_password(
     return user
 
 
-async def get_all_users(db: AsyncSession, skip: int = 0, limit: int = 100) -> list[User]:
-    """Lay danh sach users (cho admin)."""
-    result = await db.execute(select(User).offset(skip).limit(limit))
+async def get_all_users(
+    db: AsyncSession,
+    skip: int = 0,
+    limit: int = 100,
+    search: str | None = None,
+) -> list[User]:
+    """
+    Lay danh sach users (cho admin).
+
+    `search`: loc theo TEN (`full_name`) - kem email/SDT lam truong phu.
+    """
+    query = select(User)
+    query = _apply_user_search(query, search)
+    # `created_at` sinh tu now() theo transaction => can tiebreak `id` de
+    # phan trang on dinh.
+    query = query.order_by(User.created_at.desc(), User.id.desc())
+    result = await db.execute(query.offset(skip).limit(limit))
     return list(result.scalars().all())
 
 
-async def count_users(db: AsyncSession) -> int:
-    """Dem tong so user trong DB (dung cho phan trang admin)."""
-    result = await db.execute(select(func.count(User.id)))
+async def count_users(db: AsyncSession, search: str | None = None) -> int:
+    """
+    Dem tong so user trong DB (dung cho phan trang admin).
+
+    Phai dung cung dieu kien loc voi `get_all_users` neu khong `total` se khong
+    khop so ban ghi tra ve -> phan trang sai.
+    """
+    query = select(func.count(User.id))
+    query = _apply_user_search(query, search)
+    result = await db.execute(query)
     return result.scalar_one()
 
 

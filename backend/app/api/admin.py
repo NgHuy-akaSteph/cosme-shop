@@ -18,15 +18,18 @@ async def list_all_orders(
     size: int = Query(20, ge=1, le=100),
     status_filter: str | None = Query(None, alias="status"),
     user_id: int | None = None,
+    search: str | None = Query(None, description="Tim theo ma don"),
     current_admin: User = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """
     Lay danh sach tat ca don hang (Admin).
+
+    `search`: loc theo MA DON (`order_code`).
     """
     skip = (page - 1) * size
     orders, total = await order_service.get_all_orders(
-        db, skip=skip, limit=size, status=status_filter, user_id=user_id
+        db, skip=skip, limit=size, status=status_filter, user_id=user_id, search=search
     )
     
     return OrderListResponse(

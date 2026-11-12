@@ -4,6 +4,7 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.model.category import Category
+from app.service import list_sorting
 
 
 async def get_category_by_id(db: AsyncSession, category_id: int) -> Category | None:
@@ -18,11 +19,20 @@ async def get_category_by_slug(db: AsyncSession, slug: str) -> Category | None:
     return result.scalar_one_or_none()
 
 
-async def get_all_categories(db: AsyncSession, skip: int = 0, limit: int = 100) -> list[Category]:
-    """Lay danh sach tat ca categories."""
-    result = await db.execute(
-        select(Category).order_by(Category.name).offset(skip).limit(limit)
-    )
+async def get_all_categories(
+    db: AsyncSession,
+    skip: int = 0,
+    limit: int = 100,
+    sort: str | None = None,
+) -> list[Category]:
+    """
+    Lay danh sach tat ca categories.
+
+    `sort`: `newest` (moi nhat truoc), `oldest`, mac dinh alphabet theo ten.
+    """
+    query = select(Category)
+    query = list_sorting.apply_sort(query, Category, sort)
+    result = await db.execute(query.offset(skip).limit(limit))
     return list(result.scalars().all())
 
 

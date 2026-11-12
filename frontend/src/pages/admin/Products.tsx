@@ -33,10 +33,15 @@ import ProductImageManager from '../../components/admin/ProductImageManager';
 import ProductImageGalleryModal from '../../components/admin/ProductImageGalleryModal';
 import ProductStagedUploader from '../../components/admin/ProductStagedUploader';
 import PriceInputNumber from '../../components/admin/price-input-number';
+import AdminSearchBox from '../../components/admin/AdminSearchBox';
+import { buildSequenceColumn } from '../../components/admin/sequence-column';
 import type { PendingUpload } from '../../components/admin/ProductStagedUploader';
 import type { ProductImage, ProductVariant } from '../../types/product';
 
 const { Title, Text } = Typography;
+
+/** So san pham tren moi trang (dung cho phan trang va tinh STT). */
+const PAGE_SIZE = 20;
 
 /**
  * Layout bang nhap bien the (phan loai).
@@ -217,6 +222,8 @@ export default function AdminProducts() {
   const { message } = App.useApp();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<AdminProduct | null>(null);
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
   const [form] = Form.useForm<ProductFormValues>();
 
   // San pham co bien the -> `stock` la gia tri dan xuat (tong stock variants),
@@ -233,10 +240,17 @@ export default function AdminProducts() {
   // Upload dang cho: san pham da tao xong, can day file anh len
   const [pendingUpload, setPendingUpload] = useState<PendingUpload | null>(null);
 
+  // `sort=newest` de danh sach theo thu tu tao moi nhat (dong nhat voi cac
+  // list admin khac). `search` la server-side: BE loc toan bo DB, khong phai
+  // chi 100 ban ghi dau.
   const { data: products, isLoading } = useQuery({
-    queryKey: ['admin', 'products'],
+    queryKey: ['admin', 'products', search],
     queryFn: async () => {
-      const res = await api.get('/api/products?size=100');
+      const params = new URLSearchParams();
+      params.append('size', '100');
+      params.append('sort', 'newest');
+      if (search.trim()) params.append('search', search.trim());
+      const res = await api.get(`/api/products?${params.toString()}`);
       return res.data.data as AdminProduct[];
     },
   });
@@ -299,6 +313,12 @@ export default function AdminProducts() {
     },
   });
 
+  /** Doi tu khoa tim kiem -> quay ve trang 1 (ket qua loc khac nhau theo trang). */
+  const handleSearchChange = (value: string) => {
+    setSearch(value);
+    setPage(1);
+  };
+
   const handleOpenModal = (product?: AdminProduct) => {
     if (product) {
       setEditingProduct(product);
@@ -359,7 +379,7 @@ export default function AdminProducts() {
   };
 
   const columns = [
-    { title: 'ID', dataIndex: 'id', width: 60 },
+    buildSequenceColumn<AdminProduct>(page, PAGE_SIZE),
     {
       title: 'Ảnh',
       dataIndex: 'image_url',
@@ -472,12 +492,23 @@ export default function AdminProducts() {
       </div>
 
       <Card>
+        <AdminSearchBox
+          value={search}
+          onChange={handleSearchChange}
+          placeholder="Tìm theo tên sản phẩm"
+          loading={isLoading}
+        />
         <Table
           dataSource={products}
           columns={columns}
           rowKey="id"
           loading={isLoading}
-          pagination={{ pageSize: 20 }}
+          pagination={{
+            current: page,
+            pageSize: PAGE_SIZE,
+            onChange: setPage,
+          }}
+          locale={{ emptyText: 'Không tìm thấy sản phẩm phù hợp' }}
         />
       </Card>
 
