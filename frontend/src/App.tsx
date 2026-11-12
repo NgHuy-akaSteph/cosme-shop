@@ -19,6 +19,7 @@ import OrdersPage from './pages/user/OrdersPage';
 import OrderDetailPage from './pages/user/OrderDetailPage';
 import ProfilePage from './pages/user/ProfilePage';
 import WishlistPage from './pages/user/WishlistPage';
+import FaqPage from './pages/FaqPage';
 import NotFoundPage from './pages/NotFoundPage';
 
 // Admin Pages
@@ -60,6 +61,7 @@ function App() {
                 <Route path="login" element={<LoginPage />} />
                 <Route path="register" element={<RegisterPage />} />
                 <Route path="cart" element={<CartPage />} />
+                <Route path="faq" element={<FaqPage />} />
               </Route>
 
               {/* Protected User Routes */}

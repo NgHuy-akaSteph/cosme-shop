@@ -50,6 +50,19 @@ Ba module chính:
 - State: Zustand (client state) + TanStack Query (server state).
 - Deploy: static files, có thể serve qua Nginx hoặc Vite preview.
 
+#### Trang Q&A và liên kết mạng xã hội
+
+- **Trang `/faq`** (`frontend/src/pages/FaqPage.tsx`): nội dung tĩnh nằm trong
+  `frontend/src/data/faq-items.ts`, hiển thị bằng `Collapse` theo 4 nhóm chủ đề
+  (đặt hàng & thanh toán, giao hàng, đổi trả & hoàn tiền, sản phẩm & tư vấn).
+  Không gọi API, không có bảng DB — sửa nội dung bằng cách sửa file dữ liệu.
+  Menu nhóm dùng `Anchor` của antd, chỉ hiện từ breakpoint `lg` trở lên.
+- **Liên kết mạng xã hội** (`frontend/src/config/social-links.ts`): URL đọc từ biến
+  môi trường `VITE_SOCIAL_FACEBOOK`, `VITE_SOCIAL_INSTAGRAM`, `VITE_SOCIAL_TIKTOK`,
+  `VITE_SOCIAL_YOUTUBE`. Kênh không được cấu hình sẽ **không** render (không để lại
+  icon trỏ tới link chết). Footer hiển thị `<a target="_blank" rel="noopener noreferrer">`.
+- File `.env` chứa giá trị thật đã bị gitignore — chỉ `.env.example` được commit.
+
 ### 2.2 Backend (FastAPI)
 
 - Vai trò: API gateway, xử lý toàn bộ nghiệp vụ.

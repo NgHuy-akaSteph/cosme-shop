@@ -1,12 +1,14 @@
 import { Link } from 'react-router-dom';
-import { Layout, Typography, Space, Divider } from 'antd';
-import { FacebookOutlined, InstagramOutlined, TikTokOutlined } from '@ant-design/icons';
+import { Layout, Typography, Space, Divider, Tooltip } from 'antd';
 import { colors } from '../theme';
+import { getSocialLinks } from '../config/social-links';
 
 const { Footer } = Layout;
 const { Text, Title } = Typography;
 
 export default function SiteFooter() {
+  const socialLinks = getSocialLinks();
+
   return (
     <Footer style={{ padding: '48px 32px 24px' }}>
       <div
@@ -42,6 +44,7 @@ export default function SiteFooter() {
           <Space direction="vertical" size={6}>
             <Link to="/orders">Tra cứu đơn hàng</Link>
             <Link to="/profile">Tài khoản</Link>
+            <Link to="/faq">Câu hỏi thường gặp</Link>
             <span>Chính sách đổi trả</span>
             <span>Liên hệ: 1900 6868</span>
           </Space>
@@ -49,11 +52,27 @@ export default function SiteFooter() {
 
         <div>
           <Title level={5}>Kết nối</Title>
-          <Space size={16}>
-            <FacebookOutlined style={{ fontSize: 20 }} />
-            <InstagramOutlined style={{ fontSize: 20 }} />
-            <TikTokOutlined style={{ fontSize: 20 }} />
-          </Space>
+          {socialLinks.length > 0 ? (
+            <Space size={16}>
+              {socialLinks.map(({ key, label, icon: Icon, url }) => (
+                <Tooltip key={key} title={label}>
+                  <a
+                    href={url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={label}
+                    style={{ color: colors.textBase, fontSize: 20, lineHeight: 1 }}
+                  >
+                    <Icon />
+                  </a>
+                </Tooltip>
+              ))}
+            </Space>
+          ) : (
+            <Text type="secondary" style={{ fontSize: 13 }}>
+              Fanpage chính thức đang được cập nhật
+            </Text>
+          )}
         </div>
       </div>
 

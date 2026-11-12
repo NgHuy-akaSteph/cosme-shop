@@ -20,7 +20,7 @@ const NAV_ITEMS = [
   { key: '/', label: 'Trang chủ', to: '/' },
   { key: '/products', label: 'Sản phẩm', to: '/products' },
   { key: '/products?sort=best_seller', label: 'Bán chạy', to: '/products?sort=best_seller' },
-  { key: '/products?sort=newest', label: 'Mới về', to: '/products?sort=newest' },
+  { key: '/faq', label: 'Hỏi đáp', to: '/faq' },
 ];
 
 export default function SiteHeader() {
